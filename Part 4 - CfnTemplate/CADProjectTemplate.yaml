@@ -1,0 +1,284 @@
+Parameters:
+  BucketName: 
+    Description: Bucket name for e-commerce site bucket
+    Type: String
+    Default: tyler-cad-project-images
+
+Resources: 
+  CADProjectVPC:
+    Type: "AWS::EC2::VPC"
+    Properties:
+      CidrBlock: "10.0.0.0/16"
+      InstanceTenancy: "default"
+      Tags:
+      - Key: "Name"
+        Value: "CADProjectVPC" 
+
+  PublicSubnet1:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: !Select 
+        - 0
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref CADProjectVPC
+      CidrBlock: "10.0.0.0/24"
+
+  PublicSubnet2:
+    Type: "AWS::EC2::Subnet"
+    Properties:
+      AvailabilityZone: !Select 
+        - 1
+        - !GetAZs 
+          Ref: 'AWS::Region'
+      VpcId: !Ref CADProjectVPC
+      CidrBlock: "10.0.1.0/24"
+
+  PublicRouteTable:
+    Type: "AWS::EC2::RouteTable"
+    Properties:
+      VpcId: !Ref CADProjectVPC
+
+  InternetGateway:
+    Type: "AWS::EC2::InternetGateway"
+
+  AttachGateway:
+    Type: "AWS::EC2::VPCGatewayAttachment"
+    Properties:
+      VpcId: !Ref CADProjectVPC
+      InternetGatewayId: !Ref "InternetGateway"
+
+  PublicRoute:
+    Type: "AWS::EC2::Route"
+    Properties:
+      DestinationCidrBlock: "0.0.0.0/0"
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSub1RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref "PublicSubnet1"
+
+  PublicSub2RouteTableAssociation:
+    Type: "AWS::EC2::SubnetRouteTableAssociation"
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      SubnetId: !Ref "PublicSubnet2"
+
+  NatGatewayEIP1:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP1.AllocationId
+      SubnetId: !Ref "PublicSubnet1"
+
+  NatGatewayEIP2:
+    Type: AWS::EC2::EIP
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGatewayEIP2.AllocationId
+      SubnetId: !Ref "PublicSubnet2"
+
+  CADProjectDynamoDB:
+    UpdateReplacePolicy: Retain
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    Properties:
+      SSESpecification:
+        SSEEnabled: false
+      TableName: CADProjectDB
+      AttributeDefinitions:
+        - AttributeType: 'N'
+          AttributeName: ItemID
+        - AttributeType: S
+          AttributeName: ItemName
+      ContributorInsightsSpecification:
+        Enabled: false
+      BillingMode: PAY_PER_REQUEST
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: false
+      WarmThroughput:
+        ReadUnitsPerSecond: 12000
+        WriteUnitsPerSecond: 4000
+      KeySchema:
+        - KeyType: HASH
+          AttributeName: ItemID
+        - KeyType: RANGE
+          AttributeName: ItemName
+      DeletionProtectionEnabled: false
+      TableClass: STANDARD
+      Tags:
+        - Value: CAD
+          Key: Project
+      TimeToLiveSpecification:
+        Enabled: false
+
+  S3Bucket:
+    Type: "AWS::S3::Bucket"
+    Properties:
+      BucketName: !Ref "BucketName"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  WebServerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DeletionPolicy: Delete
+    Properties:
+      GroupName: web-server-sg
+      GroupDescription: Allow SSH and HTTP
+      VpcId: !Ref CADProjectVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 3306
+        ToPort: 3306
+        CidrIp: 0.0.0.0/0
+
+  EC2Instance: 
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-04823729c75214919
+      InstanceType: t2.micro
+      IamInstanceProfile:
+        Arn: arn:aws:iam::638821506583:instance-profile/LabInstanceProfile
+      KeyName: vockey
+
+  # WebServerLaunchTemplate:
+  #   Type: AWS::EC2::LaunchTemplate
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     LaunchTemplateName: web-server-launchtemp
+  #     LaunchTemplateData:
+  #       ImageId: ami-04823729c75214919
+  #       InstanceType: t2.micro
+  #       IamInstanceProfile:
+  #         Arn: arn:aws:iam::638821506583:instance-profile/LabInstanceProfile
+  #       KeyName: vockey
+  #       NetworkInterfaces: 
+  #         - DeviceIndex: 0
+  #           AssociatePublicIpAddress: true
+  #           Groups:
+  #             - !Ref WebServerSecurityGroup
+  #       TagSpecifications:
+  #         - ResourceType: instance
+  #           Tags: 
+  #             - Key: Name
+  #               Value: Web Server
+  #       UserData: 
+  #         Fn::Base64: !Sub |
+  #           #!/bin/bash
+  #           sudo yum update -y
+  #           sudo amazon-linux-extras install epel -y
+  #           sudo yum install stress -y
+  #           sudo yum install -y httpd
+  #           sudo systemctl start httpd
+  #           sudo systemctl enable httpd
+  #           sudo yum install -y git
+  #           sudo yum install -y curl
+  #           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+  #           export NVM_DIR="$HOME/.nvm"
+  #           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  #           nvm install 16.0.0
+  #           git clone https://github.com/TylerKuick/CAD_Project
+
+  #           #Set Backend API URL to API Gateway
+  #           #export API_ID=$(aws apigateway get-rest-apis --query "items[0].id" --region us-east-1 --output text)
+  #           #export API_URL="https://$API_ID.execute-api.us-east-1.amazonaws.com/dev"
+  #           #echo "'$API_URL'" | sudo tee -a .env
+            
+  #           #Build and copy files to Apache Server files
+  #           cd ./CAD_Project
+  #           sudo chmod +x node_modules/.bin/vite
+  #           npm i
+  #           #npm run build 
+  #           sudo cp -r dist/* /var/www/html
+  #           sudo systemctl restart httpd
+          
+  # WebTargetGroup:
+  #   Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  #   Properties:
+  #     VpcId: !Ref CADProjectVPC
+  #     TargetType: instance
+  #     HealthCheckPath: /
+  #     HealthCheckTimeoutSeconds: 110
+  #     HealthCheckIntervalSeconds: 300
+  #     Port: 80
+  #     Protocol: HTTP
+  #     Tags:
+  #       - Key: Name
+  #         Value: WebTG
+
+  # WebASG:
+  #   Type: AWS::AutoScaling::AutoScalingGroup
+  #   DeletionPolicy: Delete
+  #   Properties:
+  #     MinSize: '2'
+  #     MaxSize: '4'
+  #     DesiredCapacity: '2'
+  #     LaunchTemplate:
+  #       LaunchTemplateId: !Ref WebServerLaunchTemplate
+  #       Version: !GetAtt WebServerLaunchTemplate.LatestVersionNumber
+  #     HealthCheckType: ELB
+  #     VPCZoneIdentifier:
+  #       - !Ref PublicSubnet1
+  #       - !Ref PublicSubnet2
+  #     TargetGroupARNs: 
+  #       - !Ref WebTargetGroup
+
+  # WebScalingPolicy:
+  #   Type: 'AWS::AutoScaling::ScalingPolicy'
+  #   Properties:
+  #     PolicyType: TargetTrackingScaling
+  #     EstimatedInstanceWarmup: 400
+  #     AdjustmentType: ChangeInCapacity
+  #     AutoScalingGroupName: !Ref WebASG
+  #     TargetTrackingConfiguration: 
+  #       PredefinedMetricSpecification: 
+  #         PredefinedMetricType: ASGAverageCPUUtilization
+  #       TargetValue: 50
+
+  # WebALB:
+  #   Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+  #   Properties:
+  #     Type: application
+  #     Scheme: internet-facing
+  #     Name: WebALB
+  #     SecurityGroups:
+  #     - !Ref WebServerSecurityGroup
+  #     Subnets: 
+  #     - !Ref PublicSubnet1
+  #     - !Ref PublicSubnet2
+  #     Tags:
+  #       - Key: Name
+  #         Value: WebALB
+
+  # WebALBListener:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   Properties:
+  #     Protocol: HTTP
+  #     Port: 80
+  #     DefaultActions:
+  #       - Type: forward
+  #         TargetGroupArn: !Ref WebTargetGroup
+  #     LoadBalancerArn: !Ref WebALB
