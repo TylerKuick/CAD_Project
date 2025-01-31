@@ -3,6 +3,7 @@ import { Container, AppBar, Toolbar, Typography, Box } from '@mui/material';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import './App.css';
 import Home from './pages/Home';
+import AddItem from './pages/AddItem';
 
 function App() {
   const [count, setCount] = useState(0)
@@ -21,13 +22,17 @@ function App() {
               <Link to="/">
                 <Typography>Home</Typography>
               </Link>
+              <Link to="/addItem">
+                <Typography>Report Lost Item</Typography>
+              </Link>
             </Box>
           </Toolbar>
         </Container>
       </AppBar>
       <Container>
         <Routes>
-          <Route path="/" element={<Home/>}/>
+          <Route path="/" element={<Home/>} />
+          <Route path="/addItem" element={<AddItem/>} />
         </Routes>
       </Container>
     </Router>

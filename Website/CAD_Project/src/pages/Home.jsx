@@ -1,11 +1,12 @@
 import {React, useState, useEffect} from 'react';
-import {Container, Box, Typography, Grid2, Card, CardMedia, CardContent, IconButton, TextField } from "@mui/material";
+import {Container, Box, Typography, Grid2, Card, CardMedia, CardContent, IconButton, TextField, Button } from "@mui/material";
 import {Search, Clear} from "@mui/icons-material"; 
 import http from '../http.js';
 
 function Home() {
     const [itemList, setItemList] = useState([])
     
+    // Retrieve Items from DynamoDB
     const getItems = () => {
         // http.get('/lostItems').then((res) => {
         //     const json_res = JSON.parse(res.data['body'])
@@ -13,12 +14,20 @@ function Home() {
         // });
         // Temp List of Lost Items (DELETE AFT DB IS SETUP)
         const temp = [
-            {"name": "IPhone 14", "dateFound": "2025-01-20", "areaFound": "NYP BLK L Lvl 3", "image": "http://s3bucket.com/image"},
-            {"name": "Wallet", "dateFound": "2025-01-13", "areaFound": "NYP BLK S Lvl 4", "image": "http://s3bucket.com/image"},
-            {"name": "Thumb Drive", "dateFound": "2025-01-24", "areaFound": "NYP BLK L5.304", "image": "http://s3bucket.com/image"}
+            {"id": 0, "name": "IPhone 14", "dateFound": "2025-01-20", "areaFound": "NYP BLK L Lvl 3", "image": "http://s3bucket.com/image"},
+            {"id": 1, "name": "Wallet", "dateFound": "2025-01-13", "areaFound": "NYP BLK S Lvl 4", "image": "http://s3bucket.com/image"},
+            {"id": 2, "name": "Thumb Drive", "dateFound": "2025-01-24", "areaFound": "NYP BLK L5.304", "image": "http://s3bucket.com/image"}
         ]
         setItemList(temp)
     }
+
+    // Claim Items / Delete Items from DynamoDB
+    const deleteItem = (id) => {
+        // http.delete(`/lostItems/${id}`).then(()=> {
+        //     getItems();
+        // });
+        console.log(id)
+    } 
 
      // Search Items 
      const [search, setSearch] = useState('');
@@ -112,6 +121,15 @@ function Home() {
                                 >
                                     {item.areaFound}
                                 </Typography>
+                                <Button 
+                                    sx={{mt:2}}
+                                    variant="contained"
+                                    color="error" 
+                                    fullWidth
+                                    onClick = {() => deleteItem(item.id)}
+                                >
+                                        Claim
+                                </Button>
                             </CardContent>
                         </Card>
                     </Grid2>
