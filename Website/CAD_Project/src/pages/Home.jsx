@@ -14,9 +14,9 @@ function Home() {
         // });
         // Temp List of Lost Items (DELETE AFT DB IS SETUP)
         const temp = [
-            {"id": 0, "name": "IPhone 14", "dateFound": "2025-01-20", "areaFound": "NYP BLK L Lvl 3", "image": "http://s3bucket.com/image"},
-            {"id": 1, "name": "Wallet", "dateFound": "2025-01-13", "areaFound": "NYP BLK S Lvl 4", "image": "http://s3bucket.com/image"},
-            {"id": 2, "name": "Thumb Drive", "dateFound": "2025-01-24", "areaFound": "NYP BLK L5.304", "image": "http://s3bucket.com/image"}
+            {"id": 0, "itemName": "IPhone 14", "dateFound": "2025-01-20", "areaFound": "NYP BLK L Lvl 3", "image": "http://s3bucket.com/image"},
+            {"id": 1, "itemName": "Wallet", "dateFound": "2025-01-13", "areaFound": "NYP BLK S Lvl 4", "image": "http://s3bucket.com/image"},
+            {"id": 2, "itemName": "Thumb Drive", "dateFound": "2025-01-24", "areaFound": "NYP BLK L5.304", "image": "http://s3bucket.com/image"}
         ]
         setItemList(temp)
     }
@@ -76,7 +76,7 @@ function Home() {
                 value={search}
                 onChange={onSearchChange}
                 onKeyDown={onSearchKeyDown}
-                placeholder="Search products..."
+                placeholder="Search items..."
                 variant="outlined"
                 size="small"
                 sx={{ flexGrow: 1, mr: 2 }}
@@ -105,12 +105,12 @@ function Home() {
                             <CardMedia
                                 component="img"
                                 image={item.image || 'https://via.placeholder.com/150'}
-                                alt={item.name}
+                                alt={item.itemName}
                                 sx={{ height: 150, objectFit: 'cover' }}
                             />
                             <CardContent sx={{ flexGrow: 1 }}>
                                 <Typography variant="h6" sx={{ mb: 1 }}>
-                                    {item.name}
+                                    {item.itemName}
                                 </Typography>
                                 <Typography variant="body1" sx={{ color: 'text.secondary', mb: 1 }}>
                                     Price: ${item.dateFound}

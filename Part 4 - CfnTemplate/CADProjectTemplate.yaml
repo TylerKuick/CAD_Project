@@ -100,10 +100,8 @@ Resources:
         SSEEnabled: false
       TableName: CADProjectDB
       AttributeDefinitions:
-        - AttributeType: 'N'
-          AttributeName: ItemID
         - AttributeType: S
-          AttributeName: ItemName
+          AttributeName: itemID
       ContributorInsightsSpecification:
         Enabled: false
       BillingMode: PAY_PER_REQUEST
@@ -114,9 +112,7 @@ Resources:
         WriteUnitsPerSecond: 4000
       KeySchema:
         - KeyType: HASH
-          AttributeName: ItemID
-        - KeyType: RANGE
-          AttributeName: ItemName
+          AttributeName: itemID
       DeletionProtectionEnabled: false
       TableClass: STANDARD
       Tags:
@@ -160,9 +156,45 @@ Resources:
     Properties:
       ImageId: ami-04823729c75214919
       InstanceType: t2.micro
-      IamInstanceProfile:
-        Arn: arn:aws:iam::638821506583:instance-profile/LabInstanceProfile
       KeyName: vockey
+      NetworkInterfaces: 
+        - DeviceIndex: 0
+          AssociatePublicIpAddress: true
+          GroupSet:
+            - !Ref WebServerSecurityGroup
+          SubnetId: !Ref PublicSubnet1
+      Tags: 
+        - Key: Name
+          Value: Web Server
+      UserData: 
+        Fn::Base64: !Sub | 
+          #!/bin/bash
+          sudo yum update -y
+          sudo amazon-linux-extras install epel -y
+          sudo yum install stress -y
+          sudo yum install -y httpd
+          sudo systemctl start httpd
+          sudo systemctl enable httpd
+          sudo yum install -y git
+          sudo yum install -y curl
+          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+          nvm install 16.0.0
+          git clone https://github.com/TylerKuick/CAD_Project
+
+          #Set Backend API URL to API Gateway
+          export API_ID=$(aws apigateway get-rest-apis --query "items[0].id" --region us-east-1 --output text)
+          export API_URL="https://$API_ID.execute-api.us-east-1.amazonaws.com/dev"
+          echo "'$API_URL'" | sudo tee -a .env
+
+          #Build and copy files to Apache Server files
+          cd ./CAD_Project
+          sudo chmod +x node_modules/.bin/vite
+          npm i
+          #npm run build 
+          sudo cp -r dist/* /var/www/html
+          sudo systemctl restart httpd
 
   # WebServerLaunchTemplate:
   #   Type: AWS::EC2::LaunchTemplate

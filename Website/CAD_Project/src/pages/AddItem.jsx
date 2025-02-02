@@ -1,40 +1,112 @@
-import { Box, Typography, TextField, Button, Card, CardContent} from '@mui/material';
+import "./init.js";
+import { Box, Typography, TextField, Button, Card, CardContent, Container} from '@mui/material';
+import { CloudUpload } from "@mui/icons-material";
+import { styled } from '@mui/material/styles';
+import { React, useState, useEffect }from 'react';
+
 import { DateField } from '@mui/x-date-pickers/DateField';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import React from 'react';
+
 import http from "../http";
 import * as yup from 'yup';
 import { useFormik } from 'formik';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-
+import AWS from 'aws-sdk';
 
 function AddItem() {
+    var s3 = new AWS.S3({
+        region: "us-east-1", 
+        credentials: {
+            "accessKeyId": "ASIAZJPF2TYLYQDNROP5", 
+            "secretAccessKey": "PRLocEdzX+qVgr9INIxwBQmZdHKOZ+4u7g8D9I2d"
+        }
+    });
+
+    // Image Upload to S3 from Form
+    const [img, setImg] = useState();
+    const [err, setError] = useState("");
+    const validTypes = ['image/jpg', 'image/png', 'image/jpeg']
+    const handleImgChange = (e) => {
+        if (validTypes.find(type => type === e.target.files[0].type)) {
+            setError();
+            setImg(URL.createObjectURL(e.target.files[0]));
+        }
+        else {
+            setImg();
+            setError("Please only upload PNG/JPG/JPEG images.");
+        }
+    }
+
+    const handleImgUpload = (e, dbID) => {
+        const bucketName = "tyler-cad-project-images";
+        const bucketKey = bucketName + "/";
+        const photoKey = bucketKey + "images/" + dbID
+        var upload = new AWS.S3.ManagedUpload({
+            service: s3,
+            params: {
+                Bucket: "tyler-cad-project-images",
+                Key: photoKey,
+                Body: e
+            }
+        });
+
+        var promise = upload.promise();
+        promise.then((data) => {
+            alert("Successfully uploaded photo", data);
+        }).catch((err) => {
+            alert("There was an error uploading your photo", err.message)
+        })
+    }
+
+    // Upload Image Button Input Style
+    const VisuallyHiddenInput = styled('input')({
+        clip: 'rect(0 0 0 0)',
+        clipPath: 'inset(50%)',
+        height: 1,
+        overflow: 'hidden',
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        whiteSpace: 'nowrap',
+        width: 1,
+      });
+
+    // Form Logic and Validation
     const navigate = useNavigate();
     const now = dayjs();
+    const ts = now.unix();
     const formik = useFormik({
         initialValues: {
-            name: "",
+            itemID: "",
+            itemName: "",
             dateFound: now,
             areaFound: ""
         },
         validationSchema: yup.object({
-            name: yup.string().trim().min(3).max(100).required("Item Name is required"),
+            itemName: yup.string().trim().min(3).max(100).required("Item Name is required"),
             dateFound: yup.date().required("Date Found is required"),
-            areaFound: yup.string().trim().min(3).max(500).required("Area Found is required")
+            areaFound: yup.string().trim().min(3).max(500).required("Area Found is required"    )
         }),
         onSubmit: (data) => {
-            data.name = data.name.trim();
+            data.itemName = data.itemName.trim();
             data.dateFound = data.dateFound.$d
             data.areaFound = data.areaFound.trim();
+            data.itemID = `${ts}%${data.itemName.replaceAll(" ", "")}`;
+            // handleImgUpload(img, data.itemID)
             console.log(data);
+            navigate("/");
             // http.post("/lostItems", data).then((res) => {
             //     console.log(res.data);
             //     navigate("/");
             // });
         }
     });
+
+    useEffect(() => {
+        
+    }, []);
 
   return (
     <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center' }}>
@@ -44,22 +116,55 @@ function AddItem() {
                     Add New Item
                 </Typography>
                 <Box component="form" onSubmit={formik.handleSubmit}>
+                    <Button
+                        component="label"
+                        variant="contained"
+                        tabIndex={-1}
+                        startIcon={<CloudUpload />}
+                        sx ={{ display:"flex", justifySelf: "center"}}
+                        >
+                        Upload Image
+                        <VisuallyHiddenInput
+                            type="file"
+                            onChange={handleImgChange}
+                            multiple
+                        />
+                    </Button>
+                    {
+                        img ? (
+                            <Container sx={{mt:3}}>
+                                <img 
+                                    style={{width:"100%"}}
+                                    src={img}
+                                    loading="lazy"
+                                />
+                            </Container>
+                        ) : <></>
+                    }
+                    { 
+                        err ? (
+                            <Typography sx={{display:"flex", justifySelf:"center", color:"red", mt: 3}}>
+                                {err}
+                            </Typography>
+                        ) : <></>
+                    }
                     <TextField
                         fullWidth
                         margin="normal"
                         autoComplete="off"
                         label="Item Name"
-                        name="name"
-                        value={formik.values.name}
+                        name="itemName"
+                        value={formik.values.itemName}
                         onChange={formik.handleChange}
-                        error={formik.touched.ame && Boolean(formik.errors.ame)}
-                        helperText={formik.touched.name && formik.errors.name}
+                        error={formik.touched.itemName && Boolean(formik.errors.itemName)}
+                        helperText={formik.touched.itemName && formik.errors.itemName}
                         sx={{
                             "& .MuiOutlinedInput-root": {
                                 borderRadius: 2,
                             },
                         }}
                     />
+                    
                     <LocalizationProvider dateAdapter={AdapterDayjs}>
                         <DateField
                             fullWidth
@@ -69,7 +174,6 @@ function AddItem() {
                             name="dateFound"
                             value={formik.values.dateFound}
                             onChange={formik.handleChange}
-                            error={formik.touched.dateFound && Boolean(formik.errors.dateFound)}
                             helperText={formik.touched.dateFound && formik.errors.dateFound}
                             sx={{
                                 "& .MuiOutlinedInput-root": {
