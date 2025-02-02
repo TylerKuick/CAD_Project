@@ -192,7 +192,7 @@ Resources:
           cd ./CAD_Project/Website/CAD_Project
           sudo chmod +x node_modules/.bin/vite
           npm i
-          npm run build 
+          #npm run build 
           sudo cp -r dist/* /var/www/html
           sudo systemctl restart httpd
 
