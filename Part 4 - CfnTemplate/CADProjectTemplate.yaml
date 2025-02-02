@@ -189,7 +189,7 @@ Resources:
           echo "'$API_URL'" | sudo tee -a .env
 
           #Build and copy files to Apache Server files
-          cd ./CAD_Project
+          cd ./CAD_Project/Website/CAD_Project
           sudo chmod +x node_modules/.bin/vite
           npm i
           #npm run build 
