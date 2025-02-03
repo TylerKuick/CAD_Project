@@ -31,7 +31,6 @@ function AddItem() {
         if (validTypes.find(type => type === e.target.files[0].type)) {
             setError();
             setImg(URL.createObjectURL(e.target.files[0]));
-            console.log(URL.createObjectURL(e.target.files[0]))
         }
         else {
             setImg();
@@ -39,26 +38,41 @@ function AddItem() {
         }
     }
 
-    // const handleImgUpload = (e, dbID) => {
-    //     const bucketName = "tyler-cad-project-images";
-    //     const bucketKey = bucketName + "/";
-    //     const photoKey = bucketKey + "images/" + dbID
-    //     var upload = new AWS.S3.ManagedUpload({
-    //         service: s3,
-    //         params: {
-    //             Bucket: "tyler-cad-project-images",
-    //             Key: photoKey,
-    //             Body: e
-    //         }
-    //     });
+    const handleImgUpload = (imgBlob, dbID) => {
+        const bucketName = "tyler-cad-project-images";
+        const photoKey = bucketName + "/images/" + dbID
 
-    //     var promise = upload.promise();
-    //     promise.then((data) => {
-    //         alert("Successfully uploaded photo", data);
-    //     }).catch((err) => {
-    //         alert("There was an error uploading your photo", err.message)
-    //     })
-    // }
+        // Trigger Lambda to get s3 presigned url      
+        const url = http.get(`/imageUpload/${photoKey}`).then((res) => {
+            res.json();
+            console.log(res);
+        })
+        console.log(url);
+
+        const result = fetch(url, {
+            method:"PUT",
+            body: imgBlob
+        });
+        console.log(imgBlob)
+        console.log(result);
+        
+        // DELETE IF ABOVE WORKS
+        // var upload = new AWS.S3.ManagedUpload({
+        //     service: s3,
+        //     params: {
+        //         Bucket: "tyler-cad-project-images",
+        //         Key: photoKey,
+        //         Body: e
+        //     }
+        // });
+
+        // var promise = upload.promise();
+        // promise.then((data) => {
+        //     alert("Successfully uploaded photo", data);
+        // }).catch((err) => {
+        //     alert("There was an error uploading your photo", err.message)
+        // })
+    }
 
     // Upload Image Button Input Style
     const VisuallyHiddenInput = styled('input')({
@@ -93,14 +107,13 @@ function AddItem() {
             data.itemName = data.itemName.trim();
             data.dateFound = data.dateFound.$d
             data.areaFound = data.areaFound.trim();
-            data.itemID = `${ts}%${data.itemName.replaceAll(" ", "")}`;
-            // handleImgUpload(img, data.itemID)
+            data.itemID = `${ts}${data.itemName.replaceAll(" ", "")}`;
             console.log(data);
-            navigate("/");
-            // http.post("/lostItems", data).then((res) => {
-            //     console.log(res.data);
-            //     navigate("/");
-            // });
+            
+            http.post("/lostItems", data).then((res) => {
+                handleImgUpload(img, data.itemID);
+                navigate("/");
+            });
         }
     });
 

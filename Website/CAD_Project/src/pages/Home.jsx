@@ -8,25 +8,24 @@ function Home() {
     
     // Retrieve Items from DynamoDB
     const getItems = () => {
-        // http.get('/lostItems').then((res) => {
-        //     const json_res = JSON.parse(res.data['body'])
-        //     setItemList(json_res)
-        // });
+        http.get('/lostItems').then((res) => {
+            const json_res = JSON.parse(res.data['body'])
+            setItemList(json_res)
+        });
         // Temp List of Lost Items (DELETE AFT DB IS SETUP)
-        const temp = [
-            {"id": 0, "itemName": "IPhone 14", "dateFound": "2025-01-20", "areaFound": "NYP BLK L Lvl 3", "image": "http://s3bucket.com/image"},
-            {"id": 1, "itemName": "Wallet", "dateFound": "2025-01-13", "areaFound": "NYP BLK S Lvl 4", "image": "http://s3bucket.com/image"},
-            {"id": 2, "itemName": "Thumb Drive", "dateFound": "2025-01-24", "areaFound": "NYP BLK L5.304", "image": "http://s3bucket.com/image"}
-        ]
-        setItemList(temp)
+        // const temp = [
+        //     {"id": 0, "itemName": "IPhone 14", "dateFound": "2025-01-20", "areaFound": "NYP BLK L Lvl 3", "image": "http://s3bucket.com/image"},
+        //     {"id": 1, "itemName": "Wallet", "dateFound": "2025-01-13", "areaFound": "NYP BLK S Lvl 4", "image": "http://s3bucket.com/image"},
+        //     {"id": 2, "itemName": "Thumb Drive", "dateFound": "2025-01-24", "areaFound": "NYP BLK L5.304", "image": "http://s3bucket.com/image"}
+        // ]
+        // setItemList(temp)
     }
 
     // Claim Items / Delete Items from DynamoDB
     const deleteItem = (id) => {
-        // http.delete(`/lostItems/${id}`).then(()=> {
-        //     getItems();
-        // });
-        console.log(id)
+        http.delete(`/lostItems/${id}`).then(()=> {
+            getItems();
+        });
     } 
 
      // Search Items 
@@ -54,14 +53,11 @@ function Home() {
          setSearch('');
          getProducts();
      };
- 
-    useEffect(() => {
-        getItems()
-    }, []);
 
     useEffect(() => {
+        getItems()
         console.log(itemList)
-    }, [itemList])
+    }, [])
     
   return (
     <Container>
@@ -126,7 +122,7 @@ function Home() {
                                     variant="contained"
                                     color="error" 
                                     fullWidth
-                                    onClick = {() => deleteItem(item.id)}
+                                    onClick = {() => deleteItem(item.itemID)}
                                 >
                                         Claim
                                 </Button>

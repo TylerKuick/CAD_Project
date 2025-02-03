@@ -17,10 +17,20 @@ def lambda_handler(event, context):
         
         return {
             'statusCode': statusCode,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # Allow all origins
+                "Access-Control-Allow-Methods": "DELETE, OPTIONS",  # Allowed HTTP methods
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"  # Allowed headers
+            },
             "body": json.dumps("Successfully Deleted")
         }
     except Exception as e: 
         return {
             'statusCode': 500,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",  # Allow all origins
+                "Access-Control-Allow-Methods": "DELETE, OPTIONS",  # Allowed HTTP methods
+                "Access-Control-Allow-Headers": "Content-Type, Authorization"  # Allowed headers
+            },
             "body": json.dumps(f"Error: {str(e)}. Unable to delete item")
         }
