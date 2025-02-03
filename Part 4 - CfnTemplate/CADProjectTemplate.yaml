@@ -151,10 +151,10 @@ Resources:
         ToPort: 3306
         CidrIp: 0.0.0.0/0
 
-  EC2Instance: 
+  UbuntuEC2Instance: 
     Type: AWS::EC2::Instance
     Properties:
-      ImageId: ami-04823729c75214919
+      ImageId: #Ubuntu AMI 
       InstanceType: t2.micro
       KeyName: vockey
       NetworkInterfaces: 
@@ -168,33 +168,39 @@ Resources:
           Value: Web Server
       UserData: 
         Fn::Base64: !Sub | 
-          #!/bin/bash
-          sudo yum update -y
-          sudo amazon-linux-extras install epel -y
-          sudo yum install stress -y
-          sudo yum install -y httpd
-          sudo systemctl start httpd
-          sudo systemctl enable httpd
-          sudo yum install -y git
-          sudo yum install -y curl
+          #!/bin/bash -xe
+          #Ubuntu Script to initialise repo, reverse proxy application to port 80 / HTTP
+          sudo -s
+          sudo apt update -y
+          sudo apt install apache2 -y 
+          sudo ufw allow 'Apache'
+          sudo a2enmod proxy proxy_http proxy_balancer lbmethod_byrequests
+          sudo systemctl restart apache2
+
+          #Clone Website Files
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm install 16.0.0
+          nvm install 20.0.0
+
           git clone https://github.com/TylerKuick/CAD_Project
-
-          #Set Backend API URL to API Gateway
-          export API_ID=$(aws apigateway get-rest-apis --query "items[0].id" --region us-east-1 --output text)
-          export API_URL="https://$API_ID.execute-api.us-east-1.amazonaws.com/dev"
-          echo "'$API_URL'" | sudo tee -a .env
-
-          #Build and copy files to Apache Server files
           cd ./CAD_Project/Website/CAD_Project
-          sudo chmod +x node_modules/.bin/vite
-          npm i
-          #npm run build 
-          sudo cp -r dist/* /var/www/html
-          sudo systemctl restart httpd
+          npm install 
+          npm install pm2 
+          pm2 start npm --name "CAD" -- start -- --port=3000
+          pm2 save
+          pm2 startup
+
+          echo '
+          <VirtualHost *:80>
+              ProxyPreserveHost On
+              ProxyPass / http://localhost:3000/
+              ProxyPassReverse / http://localhost:3000/
+          </VirtualHost>' > /etc/apache2/sites-available/000-default.conf
+
+          sudo a2ensite 000-default.conf
+          sudo a2dissite default.conf
+          sudo systemctl restart apache2
 
   # WebServerLaunchTemplate:
   #   Type: AWS::EC2::LaunchTemplate
@@ -231,7 +237,7 @@ Resources:
   #           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
   #           export NVM_DIR="$HOME/.nvm"
   #           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-  #           nvm install 16.0.0
+  #           nvm install 20.0.0
   #           git clone https://github.com/TylerKuick/CAD_Project
 
   #           #Set Backend API URL to API Gateway
