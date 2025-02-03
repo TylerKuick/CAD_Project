@@ -26,17 +26,17 @@ function AddItem() {
     // // Image Upload to S3 from Form
     const [img, setImg] = useState();
     const [err, setError] = useState("");
-    // const validTypes = ['image/jpg', 'image/png', 'image/jpeg']
-    // const handleImgChange = (e) => {
-    //     if (validTypes.find(type => type === e.target.files[0].type)) {
-    //         setError();
-    //         setImg(URL.createObjectURL(e.target.files[0]));
-    //     }
-    //     else {
-    //         setImg();
-    //         setError("Please only upload PNG/JPG/JPEG images.");
-    //     }
-    // }
+    const validTypes = ['image/jpg', 'image/png', 'image/jpeg']
+    const handleImgChange = (e) => {
+        if (validTypes.find(type => type === e.target.files[0].type)) {
+            setError();
+            setImg(URL.createObjectURL(e.target.files[0]));
+        }
+        else {
+            setImg();
+            setError("Please only upload PNG/JPG/JPEG images.");
+        }
+    }
 
     // const handleImgUpload = (e, dbID) => {
     //     const bucketName = "tyler-cad-project-images";
@@ -125,7 +125,7 @@ function AddItem() {
                         Upload Image
                         <VisuallyHiddenInput
                             type="file"
-                            // onChange={handleImgChange}
+                            onChange={handleImgChange}
                             multiple
                         />
                     </Button>
