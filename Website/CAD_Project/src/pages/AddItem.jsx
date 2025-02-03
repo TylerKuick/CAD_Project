@@ -125,7 +125,7 @@ function AddItem() {
                         Upload Image
                         <VisuallyHiddenInput
                             type="file"
-                            onChange={handleImgChange}
+                            // onChange={handleImgChange}
                             multiple
                         />
                     </Button>
