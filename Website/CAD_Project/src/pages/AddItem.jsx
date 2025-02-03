@@ -12,52 +12,52 @@ import * as yup from 'yup';
 import { useFormik } from 'formik';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
-import AWS from 'aws-sdk';
+// import AWS from 'aws-sdk';
 
 function AddItem() {
-    var s3 = new AWS.S3({
-        region: "us-east-1", 
-        credentials: {
-            "accessKeyId": "ASIAZJPF2TYLYQDNROP5", 
-            "secretAccessKey": "PRLocEdzX+qVgr9INIxwBQmZdHKOZ+4u7g8D9I2d"
-        }
-    });
+    // var s3 = new AWS.S3({
+    //     region: "us-east-1", 
+    //     credentials: {
+    //         "accessKeyId": "ASIAZJPF2TYLYQDNROP5", 
+    //         "secretAccessKey": "PRLocEdzX+qVgr9INIxwBQmZdHKOZ+4u7g8D9I2d"
+    //     }
+    // });
 
-    // Image Upload to S3 from Form
-    const [img, setImg] = useState();
-    const [err, setError] = useState("");
-    const validTypes = ['image/jpg', 'image/png', 'image/jpeg']
-    const handleImgChange = (e) => {
-        if (validTypes.find(type => type === e.target.files[0].type)) {
-            setError();
-            setImg(URL.createObjectURL(e.target.files[0]));
-        }
-        else {
-            setImg();
-            setError("Please only upload PNG/JPG/JPEG images.");
-        }
-    }
+    // // Image Upload to S3 from Form
+    // const [img, setImg] = useState();
+    // const [err, setError] = useState("");
+    // const validTypes = ['image/jpg', 'image/png', 'image/jpeg']
+    // const handleImgChange = (e) => {
+    //     if (validTypes.find(type => type === e.target.files[0].type)) {
+    //         setError();
+    //         setImg(URL.createObjectURL(e.target.files[0]));
+    //     }
+    //     else {
+    //         setImg();
+    //         setError("Please only upload PNG/JPG/JPEG images.");
+    //     }
+    // }
 
-    const handleImgUpload = (e, dbID) => {
-        const bucketName = "tyler-cad-project-images";
-        const bucketKey = bucketName + "/";
-        const photoKey = bucketKey + "images/" + dbID
-        var upload = new AWS.S3.ManagedUpload({
-            service: s3,
-            params: {
-                Bucket: "tyler-cad-project-images",
-                Key: photoKey,
-                Body: e
-            }
-        });
+    // const handleImgUpload = (e, dbID) => {
+    //     const bucketName = "tyler-cad-project-images";
+    //     const bucketKey = bucketName + "/";
+    //     const photoKey = bucketKey + "images/" + dbID
+    //     var upload = new AWS.S3.ManagedUpload({
+    //         service: s3,
+    //         params: {
+    //             Bucket: "tyler-cad-project-images",
+    //             Key: photoKey,
+    //             Body: e
+    //         }
+    //     });
 
-        var promise = upload.promise();
-        promise.then((data) => {
-            alert("Successfully uploaded photo", data);
-        }).catch((err) => {
-            alert("There was an error uploading your photo", err.message)
-        })
-    }
+    //     var promise = upload.promise();
+    //     promise.then((data) => {
+    //         alert("Successfully uploaded photo", data);
+    //     }).catch((err) => {
+    //         alert("There was an error uploading your photo", err.message)
+    //     })
+    // }
 
     // Upload Image Button Input Style
     const VisuallyHiddenInput = styled('input')({
