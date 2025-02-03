@@ -24,8 +24,8 @@ function AddItem() {
     // });
 
     // // Image Upload to S3 from Form
-    // const [img, setImg] = useState();
-    // const [err, setError] = useState("");
+    const [img, setImg] = useState();
+    const [err, setError] = useState("");
     // const validTypes = ['image/jpg', 'image/png', 'image/jpeg']
     // const handleImgChange = (e) => {
     //     if (validTypes.find(type => type === e.target.files[0].type)) {
@@ -134,7 +134,7 @@ function AddItem() {
                             <Container sx={{mt:3}}>
                                 <img 
                                     style={{width:"100%"}}
-                                    // src={img}
+                                    src={img}
                                     loading="lazy"
                                 />
                             </Container>
