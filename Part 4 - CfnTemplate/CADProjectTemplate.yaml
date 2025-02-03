@@ -151,7 +151,7 @@ Resources:
         ToPort: 3306
         CidrIp: 0.0.0.0/0
 
-  UbuntuEC2Instance: 
+  AmzEC2Instance: 
     Type: AWS::EC2::Instance
     Properties:
       ImageId: #Ubuntu AMI 
@@ -168,39 +168,27 @@ Resources:
           Value: Web Server
       UserData: 
         Fn::Base64: !Sub | 
-          #!/bin/bash -xe
-          #Ubuntu Script to initialise repo, reverse proxy application to port 80 / HTTP
+          #!/bin/bash 
+          sudo yum update -y
+          sudo amazon-linux-extras install epel -y
+          sudo yum install stress -y
+          sudo yum install -y httpd
+          sudo systemctl start httpd
+          sudo systemctl enable httpd
+          sudo yum install -y git
+          sudo yum install -y curl
+          
+          git clone https://github.com/TylerKuick/CAD_Project
+          cd ./CAD_Project/Website/CAD_Project
           sudo -s
-          sudo apt update -y
-          sudo apt install apache2 -y 
-          sudo ufw allow 'Apache'
-          sudo a2enmod proxy proxy_http proxy_balancer lbmethod_byrequests
-          sudo systemctl restart apache2
-
-          #Clone Website Files
           curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
           export NVM_DIR="$HOME/.nvm"
           [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm install 20.0.0
+          nvm install 20
+          npm i
+          sudo cp -r dist/* /var/www/html
+          sudo systemctl restart httpd
 
-          git clone https://github.com/TylerKuick/CAD_Project
-          cd ./CAD_Project/Website/CAD_Project
-          npm install 
-          npm install pm2 
-          pm2 start npm --name "CAD" -- start -- --port=3000
-          pm2 save
-          pm2 startup
-
-          echo '
-          <VirtualHost *:80>
-              ProxyPreserveHost On
-              ProxyPass / http://localhost:3000/
-              ProxyPassReverse / http://localhost:3000/
-          </VirtualHost>' > /etc/apache2/sites-available/000-default.conf
-
-          sudo a2ensite 000-default.conf
-          sudo a2dissite default.conf
-          sudo systemctl restart apache2
 
   # WebServerLaunchTemplate:
   #   Type: AWS::EC2::LaunchTemplate
