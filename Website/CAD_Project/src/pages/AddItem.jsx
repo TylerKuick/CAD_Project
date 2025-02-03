@@ -31,6 +31,7 @@ function AddItem() {
         if (validTypes.find(type => type === e.target.files[0].type)) {
             setError();
             setImg(URL.createObjectURL(e.target.files[0]));
+            console.log(URL.createObjectURL(e.target.files[0]))
         }
         else {
             setImg();
