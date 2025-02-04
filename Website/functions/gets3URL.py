@@ -7,20 +7,23 @@ def lambda_handler(event, context):
     
     path_parameters = event.get("pathParameters")
     photoKey = path_parameters.get("photoKey") if path_parameters else None
+    body = json.loads(event['body'])
+    content_type = body.get("ContentType")
     
     s3Params = {
         'Bucket': "tyler-cad-project-images",
-        'Key': photoKey
+        'Key': photoKey,
+        'ContentType': content_type
     }
-    
-    response = s3.generate_presigned_url('put_object', Params=s3Params, ExpiresIn=60)
+    response = s3.generate_presigned_url('put_object', Params=s3Params, ExpiresIn=3600)
     
     return {
         'statusCode': 200,
         "headers": {
-            "Access-Control-Allow-Origin": "*",  # Allow all origins
-            "Access-Control-Allow-Methods": "GET, OPTIONS",  # Allowed HTTP methods
-            "Access-Control-Allow-Headers": "Content-Type, Authorization"  # Allowed headers
+          "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+          "Access-Control-Allow-Methods": "GET,OPTIONS,POST",
+          "Access-Control-Allow-Origin": "*",
+          "Content-Type": "application/json"
         },
         'body': json.dumps(response)
     }

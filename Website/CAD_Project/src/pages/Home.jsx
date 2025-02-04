@@ -25,8 +25,14 @@ function Home() {
     const deleteItem = (id) => {
         http.delete(`/lostItems/${id}`).then(()=> {
             getItems();
+            handleImgDelete();
         });
     } 
+
+    const handleImgDelete = (itemID) => {
+        const photoKey = itemID;
+        
+    };
 
      // Search Items 
      const [search, setSearch] = useState('');
@@ -100,7 +106,7 @@ function Home() {
                         >
                             <CardMedia
                                 component="img"
-                                image={item.image || 'https://via.placeholder.com/150'}
+                                image={`https://tyler-cad-project-images.s3.us-east-1.amazonaws.com/${item.itemID}` || 'https://via.placeholder.com/150'}
                                 alt={item.itemName}
                                 sx={{ height: 150, objectFit: 'cover' }}
                             />

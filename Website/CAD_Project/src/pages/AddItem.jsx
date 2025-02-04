@@ -12,6 +12,7 @@ import * as yup from 'yup';
 import { useFormik } from 'formik';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
+import axios from 'axios';
 // import AWS from 'aws-sdk';
 
 function AddItem() {
@@ -25,51 +26,45 @@ function AddItem() {
 
     // // Image Upload to S3 from Form
     const [img, setImg] = useState();
+    const [imgURL, setImgURL] = useState();
     const [err, setError] = useState("");
     const validTypes = ['image/jpg', 'image/png', 'image/jpeg']
     const handleImgChange = (e) => {
         if (validTypes.find(type => type === e.target.files[0].type)) {
             setError();
-            setImg(URL.createObjectURL(e.target.files[0]));
+            setImg(e.target.files[0]);
+            setImgURL(URL.createObjectURL(e.target.files[0]));
         }
         else {
             setImg();
+            setImgURL();
             setError("Please only upload PNG/JPG/JPEG images.");
         }
     }
 
-    const handleImgUpload = (imgBlob, dbID) => {
+    const handleImgUpload = async (imgBlob, dbID) => {
         const photoKey = dbID
         // Trigger Lambda to get s3 presigned url      
-        const url = http.get(`/imageUpload/${photoKey}`).then((res) => {
-            console.log(res);
-            const json_res = JSON.parse(res['body']);
-            console.log(json_res);
-        })
-        console.log(url);
-
-        const result = fetch(url, {
-            method:"PUT",
-            body: imgBlob
-        });
-        console.log(result);
-        
-        // DELETE IF ABOVE WORKS
-        // var upload = new AWS.S3.ManagedUpload({
-        //     service: s3,
-        //     params: {
-        //         Bucket: "tyler-cad-project-images",
-        //         Key: photoKey,
-        //         Body: e
-        //     }
-        // });
-
-        // var promise = upload.promise();
-        // promise.then((data) => {
-        //     alert("Successfully uploaded photo", data);
-        // }).catch((err) => {
-        //     alert("There was an error uploading your photo", err.message)
-        // })
+        try {
+            const data = {
+                "ContentType": imgBlob.type
+            };
+            const response = await http.post(`/imageUpload/${photoKey}`, data).then((res) => {
+                return res.data;
+            })
+            const url = response;
+            console.log(url);
+            const result = axios.put(url, imgBlob, {
+                headers: {
+                    "Content-Type": imgBlob.type
+                },
+            }).then((res) => {
+                console.log(res)
+            });
+        }
+        catch (error) {
+            console.error("Error uploading image", error);
+        }
     }
 
     // Upload Image Button Input Style
@@ -146,7 +141,7 @@ function AddItem() {
                             <Container sx={{mt:3}}>
                                 <img 
                                     style={{width:"100%"}}
-                                    src={img}
+                                    src={imgURL}
                                     loading="lazy"
                                 />
                             </Container>
