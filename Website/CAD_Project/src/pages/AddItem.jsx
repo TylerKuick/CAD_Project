@@ -110,10 +110,6 @@ function AddItem() {
         }
     });
 
-    useEffect(() => {
-        
-    }, []);
-
   return (
     <Box sx={{ mt: 5, display: 'flex', justifyContent: 'center' }}>
         <Card sx={{ width: '100%', maxWidth: 600, boxShadow: 3, p: 2 }}>

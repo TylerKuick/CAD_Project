@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import './App.css';
 import Home from './pages/Home';
 import AddItem from './pages/AddItem';
+import Notifications from './pages/Notifications';
 
 function App() {
   const [count, setCount] = useState(0)
@@ -33,6 +34,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Home/>} />
           <Route path="/addItem" element={<AddItem/>} />
+          <Route path="/notifications" element={<Notifications/>}/>
         </Routes>
       </Container>
     </Router>

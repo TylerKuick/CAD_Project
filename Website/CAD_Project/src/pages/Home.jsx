@@ -1,7 +1,8 @@
 import {React, useState, useEffect} from 'react';
-import {Container, Box, Typography, Grid2, Card, CardMedia, CardContent, IconButton, TextField, Button } from "@mui/material";
+import {Container, Box, Typography, Grid2, Card, CardMedia, CardContent, IconButton, TextField, Button, Link } from "@mui/material";
 import {Search, Clear} from "@mui/icons-material"; 
 import http from '../http.js';
+import dayjs from 'dayjs';
 
 function Home() {
     const [itemList, setItemList] = useState([])
@@ -31,7 +32,7 @@ function Home() {
 
     const handleImgDelete = (itemID) => {
         const photoKey = itemID;
-        
+
     };
 
      // Search Items 
@@ -71,6 +72,9 @@ function Home() {
             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
                 Lost & Found Items
             </Typography>
+            <Button variant='contained'>
+                <Link href="/notifications" sx={{textDecoration:"none", color:"white"}}>Notifications</Link>
+            </Button>
         </Box>
         {/* Search Bar */}
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
@@ -115,13 +119,13 @@ function Home() {
                                     {item.itemName}
                                 </Typography>
                                 <Typography variant="body1" sx={{ color: 'text.secondary', mb: 1 }}>
-                                    Price: ${item.dateFound}
+                                    Date Found: {item.dateFound}
                                 </Typography>
                                 <Typography
                                     variant="body2"
                                     sx={{ color: 'text.secondary', whiteSpace: 'pre-wrap', mb: 2 }}
                                 >
-                                    {item.areaFound}
+                                    Area Found: {item.areaFound}
                                 </Typography>
                                 <Button 
                                     sx={{mt:2}}
