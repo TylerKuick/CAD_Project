@@ -151,43 +151,43 @@ Resources:
         ToPort: 3306
         CidrIp: 0.0.0.0/0
 
-  AmzEC2Instance: 
-    Type: AWS::EC2::Instance
-    Properties:
-      ImageId: #Ubuntu AMI 
-      InstanceType: t2.micro
-      KeyName: vockey
-      NetworkInterfaces: 
-        - DeviceIndex: 0
-          AssociatePublicIpAddress: true
-          GroupSet:
-            - !Ref WebServerSecurityGroup
-          SubnetId: !Ref PublicSubnet1
-      Tags: 
-        - Key: Name
-          Value: Web Server
-      UserData: 
-        Fn::Base64: !Sub | 
-          #!/bin/bash 
-          sudo yum update -y
-          sudo amazon-linux-extras install epel -y
-          sudo yum install stress -y
-          sudo yum install -y httpd
-          sudo systemctl start httpd
-          sudo systemctl enable httpd
-          sudo yum install -y git
-          sudo yum install -y curl
+  # AmzEC2Instance: 
+  #   Type: AWS::EC2::Instance
+  #   Properties:
+  #     ImageId: ami-04823729c75214919
+  #     InstanceType: t2.micro
+  #     KeyName: vockey
+  #     NetworkInterfaces: 
+  #       - DeviceIndex: 0
+  #         AssociatePublicIpAddress: true
+  #         GroupSet:
+  #           - !Ref WebServerSecurityGroup
+  #         SubnetId: !Ref PublicSubnet1
+  #     Tags: 
+  #       - Key: Name
+  #         Value: Web Server
+  #     UserData: 
+  #       Fn::Base64: !Sub | 
+  #         #!/bin/bash 
+  #         sudo yum update -y
+  #         sudo amazon-linux-extras install epel -y
+  #         sudo yum install stress -y
+  #         sudo yum install -y httpd
+  #         sudo systemctl start httpd
+  #         sudo systemctl enable httpd
+  #         sudo yum install -y git
+  #         sudo yum install -y curl
           
-          git clone https://github.com/TylerKuick/CAD_Project
-          cd ./CAD_Project/Website/CAD_Project
-          sudo -s
-          curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
-          export NVM_DIR="$HOME/.nvm"
-          [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-          nvm install 20
-          npm i
-          sudo cp -r dist/* /var/www/html
-          sudo systemctl restart httpd
+  #         git clone https://github.com/TylerKuick/CAD_Project
+  #         cd ./CAD_Project/Website/CAD_Project
+  #         sudo -s
+  #         curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.5/install.sh | bash
+  #         export NVM_DIR="$HOME/.nvm"
+  #         [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+  #         nvm install 20
+  #         npm i
+  #         sudo cp -r dist/* /var/www/html
+  #         sudo systemctl restart httpd
 
 
   WebServerLaunchTemplate:
