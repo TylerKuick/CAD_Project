@@ -39,9 +39,7 @@ function AddItem() {
     }
 
     const handleImgUpload = (imgBlob, dbID) => {
-        const bucketName = "tyler-cad-project-images";
-        const photoKey = bucketName + "/images/" + dbID
-
+        const photoKey = dbID
         // Trigger Lambda to get s3 presigned url      
         const url = http.get(`/imageUpload/${photoKey}`).then((res) => {
             res.json();
