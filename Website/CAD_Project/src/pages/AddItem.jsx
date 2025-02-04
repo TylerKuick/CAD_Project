@@ -42,7 +42,8 @@ function AddItem() {
         const photoKey = dbID
         // Trigger Lambda to get s3 presigned url      
         const url = http.get(`/imageUpload/${photoKey}`).then((res) => {
-            const json_res = JSON.parse(res.data['body']);
+            console.log(res);
+            const json_res = JSON.parse(res['body']);
             console.log(json_res);
         })
         console.log(url);
@@ -51,7 +52,6 @@ function AddItem() {
             method:"PUT",
             body: imgBlob
         });
-        console.log(imgBlob)
         console.log(result);
         
         // DELETE IF ABOVE WORKS
