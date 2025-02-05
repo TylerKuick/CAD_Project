@@ -1,11 +1,17 @@
 Parameters: 
+  ProjectStackName: 
+    Description: Project Stack Name
+    Type: String
+    Default: "ProjectStack"
+    MinLength: 1
+    MaxLength: 255
   S3Bucket: 
     Description: Bucket name for lost and found site bucket
     Type: String
     Default: tyler-cad-project-images
 
 Resources:
-  # Product Lambda Functions
+  # Lost Items Lambda Functions
   getItems:
     Type: AWS::Lambda::Function
     Properties:
@@ -45,6 +51,54 @@ Resources:
       Runtime: python3.11
       Timeout: 10
 
+  # S3 Presigned URL Lambda Function
+  gets3URL:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function to get presigned URL for uploading to S3 
+      FunctionName: gets3URL
+      Role: arn:aws:iam::638821506583:role/LabRole
+      Code: 
+        S3Bucket: !Ref S3Bucket
+        S3Key: functions/gets3URL.zip
+      Handler: gets3URL.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+
+  # SNS Subscription Lambda Function
+  createSubscription: 
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function to create SNS Subscriptions
+      FunctionName: createSubscription
+      Role: arn:aws:iam::638821506583:role/LabRole
+      Code: 
+        S3Bucket: !Ref S3Bucket
+        S3Key: functions/createSubscription.zip
+      Handler: createSubscription.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+    
+  notifyNewItem:  
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function to notify users of new item in DynamoDB
+      FunctionName: notifyNewItem
+      Role: arn:aws:iam::638821506583:role/LabRole
+      Code: 
+        S3Bucket: !Ref S3Bucket
+        S3Key: functions/notifyNewItem.zip
+      Handler: notifyNewItem.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+
+  # DynamoDB Stream Mappings
+  DynamoDBStreamMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: Fn::ImportValue: !Sub "${ProjectStackName}-DBStreamArn"
+      FunctionName: !GetAtt notifyNewItem.Arn
+
   # API Gateway 
   ApiGateway: 
     Type: "AWS::ApiGateway::RestApi"
@@ -69,8 +123,32 @@ Resources:
       PathPart: "{id}"
       RestApiId: !Ref ApiGateway
 
+  # /notifications
+  NotificationsResource: 
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: "/notifications"
+      RestApiId: !Ref ApiGateway
+
+  # /imageUpload
+  imageUploadResource: 
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: "/imageUpload"
+      RestApiId: !Ref ApiGateway
+
+  # /imageUpload/{photoKey}
+  photoKeyResource: 
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !Ref imageUploadResource 
+      PathPart: "/{photoKey}"
+      RestApiId: !Ref ApiGateway
+
   # Methods
-  # GET /product 
+  # GET /lostItems
   GetItemsMethod:
     Type: "AWS::ApiGateway::Method"
     Properties:
@@ -82,13 +160,14 @@ Resources:
         IntegrationHttpMethod: "GET"
         Type: "AWS"
         Uri: !Sub
-          arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${getItems.Arn}/invocations
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${getItems.Arn}/invocations
+          - lambdaArn: !GetAtt getItems.Arn
       MethodResponses:
         - StatusCode: "200"
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
-  # POST /product
+  # POST /lostItems
   PostItemsMethod:
     Type: "AWS::ApiGateway::Method"
     Properties:
@@ -100,13 +179,14 @@ Resources:
         IntegrationHttpMethod: "POST"
         Type: "AWS"
         Uri: !Sub
-          arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${addItems.Arn}/invocations
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${addItems.Arn}/invocations
+          - lambdaArn: !GetAtt addItems.Arn
       MethodResponses:
         - StatusCode: "200"
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
-  # DELETE /product
+  # DELETE /lostItems/{id}
   DeleteItemMethod:
     Type: "AWS::ApiGateway::Method"
     Properties:
@@ -118,7 +198,8 @@ Resources:
         IntegrationHttpMethod: "DELETE"
         Type: "AWS_PROXY"
         Uri: !Sub
-          arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${claimItems.Arn}/invocations
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${claimItems.Arn}/invocations
+          - lambdaArn: !GetAtt claimItems.Arn
       RequestParameters:
         method.request.path.id: true
       MethodResponses:
@@ -126,8 +207,48 @@ Resources:
           ResponseParameters:
             method.response.header.Access-Control-Allow-Origin: true
 
+  # POST /imageUpload/{photoKey}
+  uploadImageMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref photoKeyResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS_PROXY"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${gets3URL.Arn}/invocations
+          - lambdaArn: !GetAtt gets3URL.Arn
+      RequestParameters:
+        method.request.path.photoKey: true
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /notifications
+  notificationsMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref NotificationsResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${createSubscription.Arn}/invocations
+          - lambdaArn: !GetAtt createSubscription.Arn
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
   # Lambda Permissions
-  # Product Lambda Permissions
+  # Lost Items Lambda Permissions
   getItemsPermission:
     Type: "AWS::Lambda::Permission"
     Properties:
@@ -154,7 +275,27 @@ Resources:
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub
         arn:aws:execute-api:us-east-1:638821506583:${ApiGateway}/*/DELETE/lostItems/{id}
-          
+
+  # S3 Lambda Permissions
+  s3Permission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref gets3URL
+      Action: "lambda:InvokeFunction"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub
+        arn:aws:execute-api:us-east-1:638821506583:${ApiGateway}/*/POST/imageUpload/{photoKey}
+
+  # SNS Lambda Permissions
+  snsPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref notifyNewItem
+      Action: "lambda:InvokeFunction"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub
+        arn:aws:execute-api:us-east-1:638821506583:${ApiGateway}/*/POST/notifications
+      
   # Enable CORS for /lostItems
   ItemCORSMethod:
     Type: "AWS::ApiGateway::Method"
@@ -205,6 +346,56 @@ Resources:
             method.response.header.Access-Control-Allow-Methods: true
             method.response.header.Access-Control-Allow-Origin: true
       
+  # Enable CORS for /uploadItems/{photoKey}
+  uploadItemsCORSMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref photoKeyResource
+      HttpMethod: "OPTIONS"
+      AuthorizationType: "NONE"
+      Integration:
+        Type: "MOCK"
+        RequestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Enable CORS for /notifications
+  notificationsCORSMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref NotificationsResource
+      HttpMethod: "OPTIONS"
+      AuthorizationType: "NONE"
+      Integration:
+        Type: "MOCK"
+        RequestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
   # API Deployment 
   ApiDeployment:
     Type: "AWS::ApiGateway::Deployment"
@@ -215,8 +406,12 @@ Resources:
       - GetItemsMethod
       - PostItemsMethod
       - DeleteItemMethod
+      - uploadImageMethod
+      - notificationsMethod
       - ItemIdCORSMethod
       - ItemCORSMethod
+      - uploadItemsCORSMethod
+      - notificationsCORSMethod
   
 Outputs:
   apiURL:
