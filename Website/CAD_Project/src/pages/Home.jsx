@@ -5,22 +5,15 @@ import http from '../http.js';
 import dayjs from 'dayjs';
 
 function Home() {
-    const [itemList, setItemList] = useState([])
+    const [itemList, setItemList] = useState([]);
+    const [search, setSearch] = useState('');
     
     // Retrieve Items from DynamoDB
     const getItems = () => {
-        http.get('/lostItems').then((res) => {
-            const json_res = JSON.parse(res.data['body'])
-            setItemList(json_res)
+        http.get(`/lostItems?search=${search}`).then((res) => {
+            setItemList(res.data);
         });
-        // Temp List of Lost Items (DELETE AFT DB IS SETUP)
-        // const temp = [
-        //     {"id": 0, "itemName": "IPhone 14", "dateFound": "2025-01-20", "areaFound": "NYP BLK L Lvl 3", "image": "http://s3bucket.com/image"},
-        //     {"id": 1, "itemName": "Wallet", "dateFound": "2025-01-13", "areaFound": "NYP BLK S Lvl 4", "image": "http://s3bucket.com/image"},
-        //     {"id": 2, "itemName": "Thumb Drive", "dateFound": "2025-01-24", "areaFound": "NYP BLK L5.304", "image": "http://s3bucket.com/image"}
-        // ]
-        // setItemList(temp)
-    }
+    }   
 
     // Claim Items / Delete Items from DynamoDB
     const deleteItem = (id) => {
@@ -28,7 +21,7 @@ function Home() {
             getItems();
             handleImgDelete();
         });
-    } 
+    };
 
     const handleImgDelete = (itemID) => {
         const photoKey = itemID;
@@ -36,35 +29,33 @@ function Home() {
     };
 
      // Search Items 
-     const [search, setSearch] = useState('');
      const onSearchChange = (e) => {
          setSearch(e.target.value);
      };
-     const searchProducts = () => {
+     const searchItems = () => {
          http.get(`/lostItems?search=${search}`).then((res) => {
-             setProductList(res.data);
+             setItemList(res.data);
          });
      };
  
      const onSearchKeyDown = (e) => {
          if (e.key === 'Enter') {
-             searchProducts();
+             searchItems();
          }
      };
  
      const onClickSearch = () => {
-         searchProducts();
+         searchItems();
      };
  
      const onClickClear = () => {
          setSearch('');
-         getProducts();
+         getItems();
      };
 
     useEffect(() => {
         getItems()
-        console.log(itemList)
-    }, [])
+    }, []);
     
   return (
     <Container>
@@ -127,6 +118,12 @@ function Home() {
                                 >
                                     Area Found: {item.areaFound}
                                 </Typography>
+                                <Typography
+                                    variant="body2"
+                                    sx={{ color: 'text.secondary', whiteSpace: 'pre-wrap', mb: 2 }}
+                                >
+                                    Category: {item.category}
+                                </Typography>
                                 <Button 
                                     sx={{mt:2}}
                                     variant="contained"
@@ -140,40 +137,6 @@ function Home() {
                         </Card>
                     </Grid2>
                 ))}
-
-                {/* Placeholder Item */}
-                {/* <Grid2 item xs={12} sm={6} md={4} lg={3}>
-                    <Card
-                        sx={{
-                            boxShadow: 3,
-                            borderRadius: 2,
-                            overflow: 'hidden',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            height: '100%',                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 
-                        }}                                                                          
-                    >                                                                                                                                                                                                                                                       
-                        <CardMedia
-                            component="img"
-                            alt="Item name"
-                            sx={{ height: 150, objectFit: 'cover' }}
-                        />
-                        <CardContent sx={{ flexGrow: 1 }}>
-                            <Typography variant="h6" sx={{ mb: 1 }}>
-                                Item Name
-                            </Typography>
-                            <Typography variant="body1" sx={{ color: 'text.secondary', mb: 1 }}>
-                                Date Found
-                            </Typography>
-                            <Typography
-                                variant="body2"
-                                sx={{ color: 'text.secondary', whiteSpace: 'pre-wrap', mb: 2 }}
-                            >
-                                Area Found
-                            </Typography>
-                        </CardContent>
-                    </Card>
-                </Grid2> */}
             </Grid2>
     </Container>
   )

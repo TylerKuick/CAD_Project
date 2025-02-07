@@ -121,7 +121,7 @@ Resources:
       TimeToLiveSpecification:
         Enabled: false
       StreamSpecification:
-        - StreamViewType: NEW_AND_OLD_IMAGES
+        StreamViewType: NEW_AND_OLD_IMAGES
 
   S3Bucket:
     Type: "AWS::S3::Bucket"
@@ -201,7 +201,7 @@ Resources:
         ImageId: ami-04823729c75214919
         InstanceType: t2.micro
         IamInstanceProfile:
-          Arn: arn:aws:iam::638821506583:instance-profile/LabInstanceProfile
+          Arn: !Sub "arn:aws:iam::${AWS::AccountId}:instance-profile/LabInstanceProfile"
         KeyName: vockey
         NetworkInterfaces: 
           - DeviceIndex: 0
@@ -304,8 +304,672 @@ Resources:
           TargetGroupArn: !Ref WebTargetGroup
       LoadBalancerArn: !Ref WebALB
 
+  # SNS Topic
+  SNSTopic: 
+    Type: AWS::SNS::Topic 
+    Properties: 
+      TopicName: "LostNFound"
+      FifoTopic: false
+
+  # SNS Publish Message Function and DB Stream
+  notifyNewItem:  
+      Type: AWS::Lambda::Function
+      Properties:
+        Description: Lambda function to notify users of new item in DynamoDB
+        FunctionName: notifyNewItem
+        Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        Code: 
+          ZipFile: | 
+            import json
+            import boto3 
+            import os 
+
+            sns = boto3.client("sns", region_name="us-east-1")
+            SNS_TOPIC_ARN = os.environ['SNS_TOPIC_ARN']
+
+            def lambda_handler(event, context):
+                # TODO implement
+                for record in event['Records']:
+                    if record['eventName'] == 'INSERT':
+                        new_item = record['dynamodb']['NewImage']
+                        item_name = new_item['itemName']['S']
+                        area = new_item['areaFound']['S']
+                        date = new_item['dateFound']['S']
+                        
+                        sns.publish(
+                            TopicArn= SNS_TOPIC_ARN,
+                            Message= f"New item added to lost & found: {item_name} at {area} at {date}",
+                            Subject= "New Lost and Found Item Alert"
+                        )
+                return {
+                    'statusCode': 200,
+                    'body': json.dumps('Successfully published SNS Message')
+                }
+        Handler: index.lambda_handler
+        Runtime: python3.11
+        Timeout: 10
+        Environment:
+          Variables:
+            SNS_TOPIC_ARN: !Ref SNSTopic
+
+  # DynamoDB Stream Mappings
+  DynamoDBStreamMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt CADProjectDynamoDB.StreamArn 
+      FunctionName: !Ref notifyNewItem
+      StartingPosition: TRIM_HORIZON
+      BatchSize: 1
+
+  # Lost Items Lambda Functions
+  getItems:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function to get all items from DynamoDB
+      FunctionName: getItems
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Code: 
+        ZipFile: | 
+          import json
+          import boto3 
+          from boto3.dynamodb.conditions import Key, Attr
+
+          def lambda_handler(event, context):
+              # TODO implement
+              dynamo = boto3.resource("dynamodb", region_name="us-east-1")
+              table = dynamo.Table('CADProjectDB')
+
+              query_params = event.get("queryStringParameters", {})
+              search_query = query_params.get('search')
+              if not search_query: 
+                  response = table.scan()
+                  items = response['Items']
+              else: 
+                  response = table.scan(FilterExpression=Attr('itemNameLower').contains(search_query))
+                  items = response['Items']
+
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps(items)
+              }
+      Handler: index.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+      
+  addItems:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function to add items to DynamoDB
+      FunctionName: addItems
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Code:
+        ZipFile: | 
+          import json
+          import boto3 
+
+          def lambda_handler(event, context):
+              # TODO implement
+              dynamo = boto3.resource("dynamodb", region_name="us-east-1")
+              table = dynamo.Table('CADProjectDB')
+              table.put_item(
+                  Item= {
+                      'itemID': event['itemID'],
+                      "itemName": event['itemName'],
+                      "dateFound": event['dateFound'],
+                      "areaFound": event['areaFound']
+                  }   
+              )
+              
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps(event)
+              }
+      Handler: index.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+     
+  claimItems:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function to delete items in DynamoDB
+      FunctionName: claimItems
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Code: 
+        ZipFile: | 
+          import boto3
+          import json
+
+          # Delete Item from DynamoDB
+          def lambda_handler(event, context):
+              dynamo = boto3.resource("dynamodb", region_name="us-east-1")
+              table = dynamo.Table('CADProjectDB')
+              try: 
+                  path_parameters = event.get("pathParameters")
+                  item_id = path_parameters.get("id") if path_parameters else None
+                  response = table.delete_item(Key={
+                      "itemID": f"{item_id}"
+                      }
+                  )
+                  
+                  statusCode = response['ResponseMetadata']['HTTPStatusCode']
+                  
+                  return {
+                      'statusCode': statusCode,
+                      "headers": {
+                        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                        "Access-Control-Allow-Methods": "DELETE,OPTIONS",
+                        "Access-Control-Allow-Origin": "*",
+                        "Content-Type": "application/json"
+                      },
+                      "body": json.dumps("Successfully Deleted")
+                  }
+              except Exception as e: 
+                  return {
+                      'statusCode': 500,
+                      "headers": {
+                        "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                        "Access-Control-Allow-Methods": "DELETE,OPTIONS",
+                        "Access-Control-Allow-Origin": "*",
+                        "Content-Type": "application/json"
+                      },
+                      "body": json.dumps(f"Error: {str(e)}. Unable to delete item")
+                  }
+      Handler: index.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+
+  # S3 Presigned URL Lambda Function
+  gets3URL:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function to get presigned URL for uploading to S3 
+      FunctionName: gets3URL
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Code: 
+        ZipFile: | 
+          import json
+          import boto3
+
+          def lambda_handler(event, context):
+              # TODO implement
+              s3 = boto3.client('s3', region_name="us-east-1")
+              
+              path_parameters = event.get("pathParameters")
+              photoKey = path_parameters.get("photoKey") if path_parameters else None
+              body = json.loads(event['body'])
+              content_type = body.get("ContentType")
+              
+              s3Params = {
+                  'Bucket': "tyler-cad-project-images",
+                  'Key': photoKey,
+                  'ContentType': content_type
+              }
+              response = s3.generate_presigned_url('put_object', Params=s3Params, ExpiresIn=3600)
+              
+              return {
+                  'statusCode': 200,
+                  "headers": {
+                    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                    "Access-Control-Allow-Methods": "GET,OPTIONS,POST",
+                    "Access-Control-Allow-Origin": "*",
+                    "Content-Type": "application/json"
+                  },
+                  'body': json.dumps(response)
+              }
+      Handler: index.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+
+  # SNS Subscription Lambda Function
+  createSubscription: 
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function to create SNS Subscriptions
+      FunctionName: createSubscription
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Code: 
+        ZipFile: | 
+          import json
+          import boto3 
+          import os 
+
+          sns = boto3.client('sns', region_name='us-east-1')
+          SNS_TOPIC_ARN = os.environ['SNS_TOPIC_ARN']
+
+          def lambda_handler(event, context):
+              # TODO implement
+              email = event['email'] 
+              
+              response = sns.subscribe(
+                  TopicArn = SNS_TOPIC_ARN,
+                  Protocol="email",
+                  Endpoint=email
+              )
+              
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps(response.get("SubscriptionArn"))
+              }
+      Handler: index.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref SNSTopic
+
+  # Rekognition Lambda Function
+  detectLabels: 
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Lambda function to generate labels for S3 images
+      FunctionName: detectLabels
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+      Code: 
+        ZipFile: | 
+          import json
+          import boto3
+          import os
+
+          rekognition = boto3.client('rekognition', region_name="us-east-1")
+          BUCKET = os.environ['S3_BUCKET_NAME']
+
+          def lambda_handler(event, context): 
+              response = rekognition.detect_labels(Image={'S3Object': {'Bucket': BUCKET, 'Name': event['photoKey']}}, MaxLabels=5)
+
+              labels = response['Labels']
+
+              return {
+                  'statusCode': 200,
+                  'body': json.dumps(labels)
+              }
+      Handler: index.lambda_handler
+      Runtime: python3.11
+      Timeout: 10
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref S3Bucket
+
+  # API Gateway 
+  ApiGateway: 
+    Type: "AWS::ApiGateway::RestApi"
+    Properties:
+      Name: "CAD-Backend-API"
+      Description: "Backend for Lost and Found Site"
+
+  # Resource Paths
+  # /lostItems
+  ItemsResource:
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: "lostItems"
+      RestApiId: !Ref ApiGateway
+  
+  # /lostItems/{id}
+  GetByIDResource: 
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !Ref ItemsResource
+      PathPart: "{id}"
+      RestApiId: !Ref ApiGateway
+
+  # /notifications
+  NotificationsResource: 
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: "notifications"
+      RestApiId: !Ref ApiGateway
+
+  # /imageUpload
+  imageUploadResource: 
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !GetAtt ApiGateway.RootResourceId
+      PathPart: "imageUpload"
+      RestApiId: !Ref ApiGateway
+
+  # /imageUpload/{photoKey}
+  photoKeyResource: 
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !Ref imageUploadResource 
+      PathPart: "{photoKey}"
+      RestApiId: !Ref ApiGateway
+
+  # /detectLabels
+  labelsResource: 
+    Type: "AWS::ApiGateway::Resource"
+    Properties:
+      ParentId: !Ref ApiGateway.RootResourceId
+      PathPart: "detectLabels"
+      RestApiId: !Ref ApiGateway
+
+  # Methods
+  # GET /lostItems
+  GetItemsMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ItemsResource
+      HttpMethod: "GET"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "GET"
+        Type: "AWS_PROXY"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${getItems.Arn}/invocations
+          - lambdaArn: !GetAtt getItems.Arn
+      RequestParameters:
+        method.request.querystring.search: false
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /lostItems
+  PostItemsMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ItemsResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${addItems.Arn}/invocations
+          - lambdaArn: !GetAtt addItems.Arn
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # DELETE /lostItems/{id}
+  DeleteItemMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref GetByIDResource
+      HttpMethod: "DELETE"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "DELETE"
+        Type: "AWS_PROXY"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${claimItems.Arn}/invocations
+          - lambdaArn: !GetAtt claimItems.Arn
+      RequestParameters:
+        method.request.path.id: true
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /imageUpload/{photoKey}
+  uploadImageMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref photoKeyResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS_PROXY"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${gets3URL.Arn}/invocations
+          - lambdaArn: !GetAtt gets3URL.Arn
+      RequestParameters:
+        method.request.path.photoKey: true
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /notifications
+  notificationsMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref NotificationsResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${createSubscription.Arn}/invocations
+          - lambdaArn: !GetAtt createSubscription.Arn
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /detectLabels
+  labelsMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref labelsResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${detectLabels.Arn}/invocations
+          - lambdaArn: !GetAtt detectLabels.Arn
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Lambda Permissions
+  # Lost Items Lambda Permissions
+  getItemsPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref getItems
+      Action: "lambda:InvokeFunction"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/GET/lostItems
+          
+  postItemsPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref addItems
+      Action: "lambda:InvokeFunction"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/POST/lostItems
+      
+  deleteItemPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref claimItems
+      Action: "lambda:InvokeFunction"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/DELETE/lostItems/{id}
+
+  # S3 Lambda Permissions
+  s3Permission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref gets3URL
+      Action: "lambda:InvokeFunction"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/POST/imageUpload/{photoKey}
+
+  # SNS Lambda Permissions
+  snsPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref notifyNewItem
+      Action: "lambda:InvokeFunction"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/POST/notifications
+  
+  # Rekognition Lambda Permissions
+  rekogPermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !Ref detectLabels
+      Action: "lambda:InvokeFunction"
+      Principal: "apigateway.amazonaws.com"
+      SourceArn: !Sub
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/POST/detectLabels
+
+  # Enable CORS for /lostItems
+  ItemCORSMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ItemsResource
+      HttpMethod: "OPTIONS"
+      AuthorizationType: "NONE"
+      Integration:
+        Type: "MOCK"
+        RequestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,GET,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+  
+  # Enable CORS for /lostItems/{id}
+  ItemIdCORSMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref GetByIDResource
+      HttpMethod: "OPTIONS"
+      AuthorizationType: "NONE"
+      Integration:
+        Type: "MOCK"
+        RequestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,DELETE'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+      
+  # Enable CORS for /uploadItems/{photoKey}
+  uploadItemsCORSMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref photoKeyResource
+      HttpMethod: "OPTIONS"
+      AuthorizationType: "NONE"
+      Integration:
+        Type: "MOCK"
+        RequestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Enable CORS for /notifications
+  notificationsCORSMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref NotificationsResource
+      HttpMethod: "OPTIONS"
+      AuthorizationType: "NONE"
+      Integration:
+        Type: "MOCK"
+        RequestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # Enable CORS for /detectLabels
+  labelsCORSMethod:
+    Type: "AWS::ApiGateway::Method"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref labelsResource
+      HttpMethod: "OPTIONS"
+      AuthorizationType: "NONE"
+      Integration:
+        Type: "MOCK"
+        RequestTemplates:
+          application/json: "{ \"statusCode\": 200 }"
+        IntegrationResponses:
+          - StatusCode: "200"
+            ResponseParameters:
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+              method.response.header.Access-Control-Allow-Methods: "'OPTIONS,POST'"
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Headers: true
+            method.response.header.Access-Control-Allow-Methods: true
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # API Deployment 
+  ApiDeployment:
+    Type: "AWS::ApiGateway::Deployment"
+    Properties:
+      RestApiId: !Ref ApiGateway
+      StageName: "dev"
+    DependsOn: 
+      - GetItemsMethod
+      - PostItemsMethod
+      - DeleteItemMethod
+      - uploadImageMethod
+      - notificationsMethod
+      - labelsMethod
+      - ItemIdCORSMethod
+      - ItemCORSMethod
+      - uploadItemsCORSMethod
+      - notificationsCORSMethod
+      - labelsCORSMethod
+  
 Outputs:
-  DynamoStreamARN:
-    Value: !GetAtt CADProjectDynamoDB.StreamArn
-    Export: 
-      Name: !Sub "${AWS::StackName}-DBStreamArn"
+  apiURL:
+    Description: URL for API Gateway 
+    Value: !Sub "https://${ApiGateway}.execute-api.${AWS::Region}.amazonaws.com/dev"

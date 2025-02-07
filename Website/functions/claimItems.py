@@ -9,7 +9,7 @@ def lambda_handler(event, context):
         path_parameters = event.get("pathParameters")
         item_id = path_parameters.get("id") if path_parameters else None
         response = table.delete_item(Key={
-            "itemID": item_id
+            "itemID": f"{item_id}"
             }
         )
         
@@ -18,9 +18,10 @@ def lambda_handler(event, context):
         return {
             'statusCode': statusCode,
             "headers": {
-                "Access-Control-Allow-Origin": "*",  # Allow all origins
-                "Access-Control-Allow-Methods": "DELETE, OPTIONS",  # Allowed HTTP methods
-                "Access-Control-Allow-Headers": "Content-Type, Authorization"  # Allowed headers
+              "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+              "Access-Control-Allow-Methods": "DELETE,OPTIONS",
+              "Access-Control-Allow-Origin": "*",
+              "Content-Type": "application/json"
             },
             "body": json.dumps("Successfully Deleted")
         }
@@ -28,9 +29,10 @@ def lambda_handler(event, context):
         return {
             'statusCode': 500,
             "headers": {
-                "Access-Control-Allow-Origin": "*",  # Allow all origins
-                "Access-Control-Allow-Methods": "DELETE, OPTIONS",  # Allowed HTTP methods
-                "Access-Control-Allow-Headers": "Content-Type, Authorization"  # Allowed headers
+              "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+              "Access-Control-Allow-Methods": "DELETE,OPTIONS",
+              "Access-Control-Allow-Origin": "*",
+              "Content-Type": "application/json"
             },
             "body": json.dumps(f"Error: {str(e)}. Unable to delete item")
         }

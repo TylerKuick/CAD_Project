@@ -11,13 +11,14 @@ Parameters:
     Default: tyler-cad-project-images
 
 Resources:
+
   # Lost Items Lambda Functions
   getItems:
     Type: AWS::Lambda::Function
     Properties:
       Description: Lambda function to get all items from DynamoDB
       FunctionName: getItems
-      Role: arn:aws:iam::638821506583:role/LabRole
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
       Code: 
         S3Bucket: !Ref S3Bucket
         S3Key: functions/getItems.zip
@@ -30,7 +31,7 @@ Resources:
     Properties:
       Description: Lambda function to add items to DynamoDB
       FunctionName: addItems
-      Role: arn:aws:iam::638821506583:role/LabRole
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
       Code: 
         S3Bucket: !Ref S3Bucket
         S3Key: functions/addItems.zip
@@ -43,7 +44,7 @@ Resources:
     Properties:
       Description: Lambda function to delete items in DynamoDB
       FunctionName: claimItems
-      Role: arn:aws:iam::638821506583:role/LabRole
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
       Code: 
         S3Bucket: !Ref S3Bucket
         S3Key: functions/claimItems.zip
@@ -57,7 +58,7 @@ Resources:
     Properties:
       Description: Lambda function to get presigned URL for uploading to S3 
       FunctionName: gets3URL
-      Role: arn:aws:iam::638821506583:role/LabRole
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
       Code: 
         S3Bucket: !Ref S3Bucket
         S3Key: functions/gets3URL.zip
@@ -71,33 +72,16 @@ Resources:
     Properties:
       Description: Lambda function to create SNS Subscriptions
       FunctionName: createSubscription
-      Role: arn:aws:iam::638821506583:role/LabRole
+      Role: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
       Code: 
         S3Bucket: !Ref S3Bucket
         S3Key: functions/createSubscription.zip
       Handler: createSubscription.lambda_handler
       Runtime: python3.11
       Timeout: 10
-    
-  notifyNewItem:  
-    Type: AWS::Lambda::Function
-    Properties:
-      Description: Lambda function to notify users of new item in DynamoDB
-      FunctionName: notifyNewItem
-      Role: arn:aws:iam::638821506583:role/LabRole
-      Code: 
-        S3Bucket: !Ref S3Bucket
-        S3Key: functions/notifyNewItem.zip
-      Handler: notifyNewItem.lambda_handler
-      Runtime: python3.11
-      Timeout: 10
-
-  # DynamoDB Stream Mappings
-  DynamoDBStreamMapping:
-    Type: AWS::Lambda::EventSourceMapping
-    Properties:
-      EventSourceArn: Fn::ImportValue: !Sub "${ProjectStackName}-DBStreamArn"
-      FunctionName: !GetAtt notifyNewItem.Arn
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref SNSTopic
 
   # API Gateway 
   ApiGateway: 
@@ -128,7 +112,7 @@ Resources:
     Type: "AWS::ApiGateway::Resource"
     Properties:
       ParentId: !GetAtt ApiGateway.RootResourceId
-      PathPart: "/notifications"
+      PathPart: "notifications"
       RestApiId: !Ref ApiGateway
 
   # /imageUpload
@@ -136,7 +120,7 @@ Resources:
     Type: "AWS::ApiGateway::Resource"
     Properties:
       ParentId: !GetAtt ApiGateway.RootResourceId
-      PathPart: "/imageUpload"
+      PathPart: "imageUpload"
       RestApiId: !Ref ApiGateway
 
   # /imageUpload/{photoKey}
@@ -144,7 +128,7 @@ Resources:
     Type: "AWS::ApiGateway::Resource"
     Properties:
       ParentId: !Ref imageUploadResource 
-      PathPart: "/{photoKey}"
+      PathPart: "{photoKey}"
       RestApiId: !Ref ApiGateway
 
   # Methods
@@ -256,7 +240,7 @@ Resources:
       Action: "lambda:InvokeFunction"
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub
-        arn:aws:execute-api:us-east-1:638821506583:${ApiGateway}/*/GET/lostItems
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/GET/lostItems
           
   postItemsPermission:
     Type: "AWS::Lambda::Permission"
@@ -265,7 +249,7 @@ Resources:
       Action: "lambda:InvokeFunction"
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub
-        arn:aws:execute-api:us-east-1:638821506583:${ApiGateway}/*/POST/lostItems
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/POST/lostItems
       
   deleteItemPermission:
     Type: "AWS::Lambda::Permission"
@@ -274,7 +258,7 @@ Resources:
       Action: "lambda:InvokeFunction"
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub
-        arn:aws:execute-api:us-east-1:638821506583:${ApiGateway}/*/DELETE/lostItems/{id}
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/DELETE/lostItems/{id}
 
   # S3 Lambda Permissions
   s3Permission:
@@ -284,7 +268,7 @@ Resources:
       Action: "lambda:InvokeFunction"
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub
-        arn:aws:execute-api:us-east-1:638821506583:${ApiGateway}/*/POST/imageUpload/{photoKey}
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/POST/imageUpload/{photoKey}
 
   # SNS Lambda Permissions
   snsPermission:
@@ -294,7 +278,7 @@ Resources:
       Action: "lambda:InvokeFunction"
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub
-        arn:aws:execute-api:us-east-1:638821506583:${ApiGateway}/*/POST/notifications
+        arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/POST/notifications
       
   # Enable CORS for /lostItems
   ItemCORSMethod:

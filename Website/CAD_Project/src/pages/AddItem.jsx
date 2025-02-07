@@ -13,17 +13,8 @@ import { useFormik } from 'formik';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import axios from 'axios';
-// import AWS from 'aws-sdk';
 
 function AddItem() {
-    // var s3 = new AWS.S3({
-    //     region: "us-east-1", 
-    //     credentials: {
-    //         "accessKeyId": "ASIAZJPF2TYLYQDNROP5", 
-    //         "secretAccessKey": "PRLocEdzX+qVgr9INIxwBQmZdHKOZ+4u7g8D9I2d"
-    //     }
-    // });
-
     // // Image Upload to S3 from Form
     const [img, setImg] = useState();
     const [imgURL, setImgURL] = useState();
@@ -58,13 +49,15 @@ function AddItem() {
                 headers: {
                     "Content-Type": imgBlob.type
                 },
-            }).then((res) => {
-                console.log(res)
-            });
+            })
         }
         catch (error) {
             console.error("Error uploading image", error);
         }
+    }
+
+    const labelImage = () => {
+
     }
 
     // Upload Image Button Input Style
@@ -89,7 +82,8 @@ function AddItem() {
             itemID: "",
             itemName: "",
             dateFound: now,
-            areaFound: ""
+            areaFound: "",
+            category: ""
         },
         validationSchema: yup.object({
             itemName: yup.string().trim().min(3).max(100).required("Item Name is required"),
@@ -101,12 +95,17 @@ function AddItem() {
             data.dateFound = data.dateFound.$d
             data.areaFound = data.areaFound.trim();
             data.itemID = `${ts}${data.itemName.replaceAll(" ", "")}`;
-            console.log(data);
-            
-            http.post("/lostItems", data).then((res) => {
-                handleImgUpload(img, data.itemID);
-                navigate("/");
+            handleImgUpload(img, data.itemID).then((res)=> {
+                // Get Labels from Rekognition
+                http.post("/detectLabels", {"photoKey": data.itemID}).then((res) => {
+                    data.category = res.data.body.replaceAll('"','');
+                    http.post("/lostItems", data).then((res) => {
+                        console.log(res);
+                        navigate("/");
+                    });
+                });
             });
+            
         }
     });
 
