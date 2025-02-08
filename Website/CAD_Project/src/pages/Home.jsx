@@ -73,7 +73,7 @@ function Home() {
                 value={search}
                 onChange={onSearchChange}
                 onKeyDown={onSearchKeyDown}
-                placeholder="Search items..."
+                placeholder="Search items by name or category..."
                 variant="outlined"
                 size="small"
                 sx={{ flexGrow: 1, mr: 2 }}
