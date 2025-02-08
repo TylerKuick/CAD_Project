@@ -1,5 +1,5 @@
 import React from 'react';
-import { Box, Typography, TextField, Button, Card, CardContent} from '@mui/material';
+import { Box, Typography, TextField, Button, Card, CardContent, Select, MenuItem, InputLabel} from '@mui/material';
 
 import http from "../http";
 import * as yup from 'yup';
@@ -10,13 +10,16 @@ function Notifications() {
     const navigate = useNavigate();
     const formik = useFormik({
         initialValues: {
-            email: ""
+            email: "",
+            category: "None"
         },
         validationSchema: yup.object({
-            email: yup.string().email().required()
+            email: yup.string().email().required(),
+            category: yup.string().required()
         }),
         onSubmit: (data) => {
             data.email = data.email.trim()
+
             console.log(data);
             http.post("/notifications", data).then((res) => {
                 console.log(res);
@@ -32,6 +35,25 @@ function Notifications() {
                     Subscribe to SNS Notifications
                 </Typography>
                 <Box component="form" onSubmit={formik.handleSubmit}>
+                    <InputLabel variant='standard' sx={{fontSize:14, mb: 0.5, ml: 0.5}}>Category</InputLabel>
+                    <Select
+                        fullWidth
+                        name="category"
+                        value={formik.values.category}
+                        onChange={formik.handleChange}
+                        error={formik.touched.category && Boolean(formik.errors.category)}
+                        sx={{
+                            "& .MuiOutlinedInput-root": {
+                                borderRadius: 2,
+                            },
+                        }}
+                    >
+                        <MenuItem value="None">None</MenuItem>
+                        <MenuItem value="Electronics">Electronics</MenuItem>
+                        <MenuItem value="Accessories">Accessories</MenuItem>
+                        <MenuItem value="Wristwatch">Wristwatch</MenuItem>
+                        <MenuItem value="Bottle">Bottle</MenuItem>
+                    </Select>
                     <TextField
                         fullWidth
                         margin="normal"

@@ -13,11 +13,18 @@ def lambda_handler(event, context):
             item_name = new_item['itemName']['S']
             area = new_item['areaFound']['S']
             date = new_item['dateFound']['S']
-            
+            category = new_item['category']['S']
+
             sns.publish(
                 TopicArn= SNS_TOPIC_ARN,
-                Message= f"New item added to lost & found: {item_name} at {area} at {date}",
-                Subject= "New Lost and Found Item Alert"
+                Message= f"New item added to {category} category: {item_name} at {area} at {date}",
+                Subject= "New Lost and Found Item Alert",
+                MessageAttributes={
+                    'category': {
+                        'DataType': "String",
+                        "StringValue": category 
+                    }
+                }
             )
     return {
         'statusCode': 200,
