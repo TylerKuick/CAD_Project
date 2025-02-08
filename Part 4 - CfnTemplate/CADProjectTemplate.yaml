@@ -505,6 +505,7 @@ Resources:
         ZipFile: | 
           import json
           import boto3
+          import os
 
           def lambda_handler(event, context):
               # TODO implement
@@ -516,7 +517,7 @@ Resources:
               content_type = body.get("ContentType")
               
               s3Params = {
-                  'Bucket': "tyler-cad-project-images",
+                  'Bucket': os.environ["S3_BUCKET"],
                   'Key': photoKey,
                   'ContentType': content_type
               }
@@ -535,6 +536,9 @@ Resources:
       Handler: index.lambda_handler
       Runtime: python3.11
       Timeout: 10
+      Environment:
+        Variables:
+          S3_BUKET: !Ref S3Bucket
 
   # SNS Subscription Lambda Function
   createSubscription: 
@@ -668,7 +672,7 @@ Resources:
   labelsResource: 
     Type: "AWS::ApiGateway::Resource"
     Properties:
-      ParentId: !Ref ApiGateway.RootResourceId
+      ParentId: !GetAtt ApiGateway.RootResourceId
       PathPart: "detectLabels"
       RestApiId: !Ref ApiGateway
 
@@ -735,7 +739,7 @@ Resources:
   # GET /lostItems
   GetItemsMethod:
     Type: "AWS::ApiGateway::Method"
-    DependsOn: !Ref getItemsPermission
+    DependsOn: getItemsPermission
     Properties:
       RestApiId: !Ref ApiGateway
       ResourceId: !Ref ItemsResource
@@ -744,8 +748,8 @@ Resources:
       Integration:
         IntegrationHttpMethod: "GET"
         Type: "AWS_PROXY"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${getItems.Arn}/invocations
+        Credentials: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        Uri: !Sub arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${getItems.Arn}/invocations
       RequestParameters:
         method.request.querystring.search: false
       MethodResponses:
@@ -756,7 +760,7 @@ Resources:
   # POST /lostItems
   PostItemsMethod:
     Type: "AWS::ApiGateway::Method"
-    DependsOn: !Ref postItemsPermission
+    DependsOn: postItemsPermission
     Properties:
       RestApiId: !Ref ApiGateway
       ResourceId: !Ref ItemsResource
@@ -765,8 +769,8 @@ Resources:
       Integration:
         IntegrationHttpMethod: "POST"
         Type: "AWS"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${addItems.Arn}/invocations
+        Credentials: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        Uri: !Sub arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${addItems.Arn}/invocations
       MethodResponses:
         - StatusCode: "200"
           ResponseParameters:
@@ -775,7 +779,7 @@ Resources:
   # DELETE /lostItems/{id}
   DeleteItemMethod:
     Type: "AWS::ApiGateway::Method"
-    DependsOn: !Ref deleteItemPermission
+    DependsOn: deleteItemPermission
     Properties:
       RestApiId: !Ref ApiGateway
       ResourceId: !Ref GetByIDResource
@@ -784,8 +788,8 @@ Resources:
       Integration:
         IntegrationHttpMethod: "DELETE"
         Type: "AWS_PROXY"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${claimItems.Arn}/invocations
+        Credentials: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        Uri: !Sub arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${claimItems.Arn}/invocations
       RequestParameters:
         method.request.path.id: true
       MethodResponses:
@@ -796,7 +800,7 @@ Resources:
   # POST /imageUpload/{photoKey}
   uploadImageMethod:
     Type: "AWS::ApiGateway::Method"
-    DependsOn: !Ref s3Permission
+    DependsOn: s3Permission
     Properties:
       RestApiId: !Ref ApiGateway
       ResourceId: !Ref photoKeyResource
@@ -805,8 +809,8 @@ Resources:
       Integration:
         IntegrationHttpMethod: "POST"
         Type: "AWS_PROXY"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${gets3URL.Arn}/invocations
+        Credentials: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        Uri: !Sub arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${gets3URL.Arn}/invocations
       RequestParameters:
         method.request.path.photoKey: true
       MethodResponses:
@@ -817,7 +821,7 @@ Resources:
   # POST /notifications
   notificationsMethod:
     Type: "AWS::ApiGateway::Method"
-    DependsOn: !Ref snsPermission
+    DependsOn: snsPermission
     Properties:
       RestApiId: !Ref ApiGateway
       ResourceId: !Ref NotificationsResource
@@ -826,8 +830,8 @@ Resources:
       Integration:
         IntegrationHttpMethod: "POST"
         Type: "AWS"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${createSubscription.Arn}/invocations
+        Credentials: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        Uri: !Sub arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${createSubscription.Arn}/invocations
       MethodResponses:
         - StatusCode: "200"
           ResponseParameters:
@@ -836,7 +840,7 @@ Resources:
   # POST /detectLabels
   labelsMethod:
     Type: "AWS::ApiGateway::Method"
-    DependsOn: !Ref rekogPermission
+    DependsOn: rekogPermission
     Properties:
       RestApiId: !Ref ApiGateway
       ResourceId: !Ref labelsResource
@@ -845,8 +849,8 @@ Resources:
       Integration:
         IntegrationHttpMethod: "POST"
         Type: "AWS"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${detectLabels.Arn}/invocations
+        Credentials: !Sub "arn:aws:iam::${AWS::AccountId}:role/LabRole"
+        Uri: !Sub arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${detectLabels.Arn}/invocations
       MethodResponses:
         - StatusCode: "200"
           ResponseParameters:
