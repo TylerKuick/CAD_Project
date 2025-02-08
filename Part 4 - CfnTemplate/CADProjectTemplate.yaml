@@ -335,11 +335,18 @@ Resources:
                         item_name = new_item['itemName']['S']
                         area = new_item['areaFound']['S']
                         date = new_item['dateFound']['S']
-                        
+                        category = new_item['category']['S']
+
                         sns.publish(
                             TopicArn= SNS_TOPIC_ARN,
-                            Message= f"New item added to lost & found: {item_name} at {area} at {date}",
-                            Subject= "New Lost and Found Item Alert"
+                            Message= f"New item added to {category} category: {item_name} at {area} at {date}",
+                            Subject= "New Lost and Found Item Alert",
+                            MessageAttributes={
+                                'category': {
+                                    'DataType': "String",
+                                    "StringValue": category 
+                                }
+                            }
                         )
                 return {
                     'statusCode': 200,
@@ -378,18 +385,24 @@ Resources:
               # TODO implement
               dynamo = boto3.resource("dynamodb", region_name="us-east-1")
               table = dynamo.Table('CADProjectDB')
-
+              
               query_params = event.get("queryStringParameters", {})
               search_query = query_params.get('search')
               if not search_query: 
                   response = table.scan()
                   items = response['Items']
               else: 
-                  response = table.scan(FilterExpression=Attr('itemNameLower').contains(search_query))
+                  response = table.scan(FilterExpression=Attr('itemNameLower').contains(search_query) | Attr('categoryLower').contains(search_query))
                   items = response['Items']
 
               return {
                   'statusCode': 200,
+                  'headers': {
+                    "Access-Control-Allow-Headers": "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+                    "Access-Control-Allow-Methods": "OPTIONS,GET,POST",
+                    "Access-Control-Allow-Origin": "*",
+                    "Content-Type": "application/json"
+                  },
                   'body': json.dumps(items)
               }
       Handler: index.lambda_handler
@@ -415,8 +428,11 @@ Resources:
                   Item= {
                       'itemID': event['itemID'],
                       "itemName": event['itemName'],
+                      "itemNameLower": event['itemName'].lower(),
                       "dateFound": event['dateFound'],
-                      "areaFound": event['areaFound']
+                      "areaFound": event['areaFound'],
+                      "category": event['category'],
+                      "categoryLower": event['category'].lower()
                   }   
               )
               
@@ -539,13 +555,24 @@ Resources:
           def lambda_handler(event, context):
               # TODO implement
               email = event['email'] 
+              category = event['category']
               
-              response = sns.subscribe(
-                  TopicArn = SNS_TOPIC_ARN,
-                  Protocol="email",
-                  Endpoint=email
-              )
-              
+              if category != "None":
+                  filter_policy = {"category": [category]}
+
+                  response = sns.subscribe(
+                      TopicArn = SNS_TOPIC_ARN,
+                      Protocol="email",
+                      Endpoint=email,
+                      Attributes={"FilterPolicy": json.dumps(filter_policy)}
+                  )
+              else: 
+                  response = sns.subscribe(
+                      TopicArn = SNS_TOPIC_ARN,
+                      Protocol="email",
+                      Endpoint=email
+                  )
+                  
               return {
                   'statusCode': 200,
                   'body': json.dumps(response.get("SubscriptionArn"))
@@ -576,7 +603,7 @@ Resources:
           def lambda_handler(event, context): 
               response = rekognition.detect_labels(Image={'S3Object': {'Bucket': BUCKET, 'Name': event['photoKey']}}, MaxLabels=5)
 
-              labels = response['Labels']
+              labels = response['Labels'][0]['Name']
 
               return {
                   'statusCode': 200,
@@ -645,127 +672,6 @@ Resources:
       PathPart: "detectLabels"
       RestApiId: !Ref ApiGateway
 
-  # Methods
-  # GET /lostItems
-  GetItemsMethod:
-    Type: "AWS::ApiGateway::Method"
-    Properties:
-      RestApiId: !Ref ApiGateway
-      ResourceId: !Ref ItemsResource
-      HttpMethod: "GET"
-      AuthorizationType: "NONE"
-      Integration:
-        IntegrationHttpMethod: "GET"
-        Type: "AWS_PROXY"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${getItems.Arn}/invocations
-          - lambdaArn: !GetAtt getItems.Arn
-      RequestParameters:
-        method.request.querystring.search: false
-      MethodResponses:
-        - StatusCode: "200"
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # POST /lostItems
-  PostItemsMethod:
-    Type: "AWS::ApiGateway::Method"
-    Properties:
-      RestApiId: !Ref ApiGateway
-      ResourceId: !Ref ItemsResource
-      HttpMethod: "POST"
-      AuthorizationType: "NONE"
-      Integration:
-        IntegrationHttpMethod: "POST"
-        Type: "AWS"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${addItems.Arn}/invocations
-          - lambdaArn: !GetAtt addItems.Arn
-      MethodResponses:
-        - StatusCode: "200"
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # DELETE /lostItems/{id}
-  DeleteItemMethod:
-    Type: "AWS::ApiGateway::Method"
-    Properties:
-      RestApiId: !Ref ApiGateway
-      ResourceId: !Ref GetByIDResource
-      HttpMethod: "DELETE"
-      AuthorizationType: "NONE"
-      Integration:
-        IntegrationHttpMethod: "DELETE"
-        Type: "AWS_PROXY"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${claimItems.Arn}/invocations
-          - lambdaArn: !GetAtt claimItems.Arn
-      RequestParameters:
-        method.request.path.id: true
-      MethodResponses:
-        - StatusCode: "200"
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # POST /imageUpload/{photoKey}
-  uploadImageMethod:
-    Type: "AWS::ApiGateway::Method"
-    Properties:
-      RestApiId: !Ref ApiGateway
-      ResourceId: !Ref photoKeyResource
-      HttpMethod: "POST"
-      AuthorizationType: "NONE"
-      Integration:
-        IntegrationHttpMethod: "POST"
-        Type: "AWS_PROXY"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${gets3URL.Arn}/invocations
-          - lambdaArn: !GetAtt gets3URL.Arn
-      RequestParameters:
-        method.request.path.photoKey: true
-      MethodResponses:
-        - StatusCode: "200"
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # POST /notifications
-  notificationsMethod:
-    Type: "AWS::ApiGateway::Method"
-    Properties:
-      RestApiId: !Ref ApiGateway
-      ResourceId: !Ref NotificationsResource
-      HttpMethod: "POST"
-      AuthorizationType: "NONE"
-      Integration:
-        IntegrationHttpMethod: "POST"
-        Type: "AWS"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${createSubscription.Arn}/invocations
-          - lambdaArn: !GetAtt createSubscription.Arn
-      MethodResponses:
-        - StatusCode: "200"
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
-  # POST /detectLabels
-  labelsMethod:
-    Type: "AWS::ApiGateway::Method"
-    Properties:
-      RestApiId: !Ref ApiGateway
-      ResourceId: !Ref labelsResource
-      HttpMethod: "POST"
-      AuthorizationType: "NONE"
-      Integration:
-        IntegrationHttpMethod: "POST"
-        Type: "AWS"
-        Uri: !Sub
-          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${detectLabels.Arn}/invocations
-          - lambdaArn: !GetAtt detectLabels.Arn
-      MethodResponses:
-        - StatusCode: "200"
-          ResponseParameters:
-            method.response.header.Access-Control-Allow-Origin: true
-
   # Lambda Permissions
   # Lost Items Lambda Permissions
   getItemsPermission:
@@ -824,6 +730,127 @@ Resources:
       Principal: "apigateway.amazonaws.com"
       SourceArn: !Sub
         arn:aws:execute-api:us-east-1:${AWS::AccountId}:${ApiGateway}/*/POST/detectLabels
+
+  # Methods
+  # GET /lostItems
+  GetItemsMethod:
+    Type: "AWS::ApiGateway::Method"
+    DependsOn: !Ref getItemsPermission
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ItemsResource
+      HttpMethod: "GET"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "GET"
+        Type: "AWS_PROXY"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${getItems.Arn}/invocations
+      RequestParameters:
+        method.request.querystring.search: false
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /lostItems
+  PostItemsMethod:
+    Type: "AWS::ApiGateway::Method"
+    DependsOn: !Ref postItemsPermission
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref ItemsResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${addItems.Arn}/invocations
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # DELETE /lostItems/{id}
+  DeleteItemMethod:
+    Type: "AWS::ApiGateway::Method"
+    DependsOn: !Ref deleteItemPermission
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref GetByIDResource
+      HttpMethod: "DELETE"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "DELETE"
+        Type: "AWS_PROXY"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${claimItems.Arn}/invocations
+      RequestParameters:
+        method.request.path.id: true
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /imageUpload/{photoKey}
+  uploadImageMethod:
+    Type: "AWS::ApiGateway::Method"
+    DependsOn: !Ref s3Permission
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref photoKeyResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS_PROXY"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${gets3URL.Arn}/invocations
+      RequestParameters:
+        method.request.path.photoKey: true
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /notifications
+  notificationsMethod:
+    Type: "AWS::ApiGateway::Method"
+    DependsOn: !Ref snsPermission
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref NotificationsResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${createSubscription.Arn}/invocations
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
+
+  # POST /detectLabels
+  labelsMethod:
+    Type: "AWS::ApiGateway::Method"
+    DependsOn: !Ref rekogPermission
+    Properties:
+      RestApiId: !Ref ApiGateway
+      ResourceId: !Ref labelsResource
+      HttpMethod: "POST"
+      AuthorizationType: "NONE"
+      Integration:
+        IntegrationHttpMethod: "POST"
+        Type: "AWS"
+        Uri: !Sub
+          - arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/${detectLabels.Arn}/invocations
+      MethodResponses:
+        - StatusCode: "200"
+          ResponseParameters:
+            method.response.header.Access-Control-Allow-Origin: true
 
   # Enable CORS for /lostItems
   ItemCORSMethod:
