@@ -45,11 +45,12 @@ function AddItem() {
             })
             const url = response;
             console.log(url);
-            const result = axios.put(url, imgBlob, {
+            const result = await axios.put(url, imgBlob, {
                 headers: {
                     "Content-Type": imgBlob.type
                 },
-            })
+            });
+            console.log(result);
         }
         catch (error) {
             console.error("Error uploading image", error);
@@ -97,10 +98,9 @@ function AddItem() {
             data.itemID = `${ts}${data.itemName.replaceAll(" ", "")}`;
             handleImgUpload(img, data.itemID).then((res)=> {
                 // Get Labels from Rekognition
-                http.post("/detectLabels", {"photoKey": data.itemID}).then((res) => {
+                http.post("/detectLabels", {'photoKey': data.itemID}).then((res) => { 
                     data.category = res.data.body.replaceAll('"','');
                     http.post("/lostItems", data).then((res) => {
-                        console.log(res);
                         navigate("/");
                     });
                 });

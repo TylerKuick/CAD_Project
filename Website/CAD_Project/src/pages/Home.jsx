@@ -33,7 +33,7 @@ function Home() {
          setSearch(e.target.value);
      };
      const searchItems = () => {
-         http.get(`/lostItems?search=${search}`).then((res) => {
+         http.get(`/lostItems?search=${search.toLowerCase()}`).then((res) => {
              setItemList(res.data);
          });
      };
