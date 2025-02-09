@@ -10,6 +10,13 @@ def lambda_handler(event, context):
     email = event['email'] 
     category = event['category']
     
+    subs = sns.list_subscriptions_by_topic(TopicArn=SNS_TOPIC_ARN)
+    sub_arn = None
+    for sub in subs['Subscriptions']:
+        if sub['Endpoint'] == email:
+            sub_arn = sub["SubscriptionArn"]
+            sns.unsubscribe(SubscriptionArn=sub_arn)
+            
     if category != "None":
         filter_policy = {"category": [category]}
 

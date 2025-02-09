@@ -49,7 +49,7 @@ function Home() {
      };
  
      const onClickClear = () => {
-         setSearch('');
+         setSearch("");
          getItems();
      };
 
