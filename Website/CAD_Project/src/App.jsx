@@ -23,6 +23,9 @@ function App() {
               <Link to="/">
                 <Typography>Home</Typography>
               </Link>
+              <Link to="/notifications">
+                <Typography>Notifications</Typography>
+              </Link>
               <Link to="/addItem">
                 <Typography>Report Lost Item</Typography>
               </Link>

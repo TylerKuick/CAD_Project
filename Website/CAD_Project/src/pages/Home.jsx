@@ -63,9 +63,9 @@ function Home() {
             <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
                 Lost & Found Items
             </Typography>
-            <Button variant='contained'>
+            {/* <Button variant='contained'>
                 <Link href="/notifications" sx={{textDecoration:"none", color:"white"}}>Notifications</Link>
-            </Button>
+            </Button> */}
         </Box>
         {/* Search Bar */}
         <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
